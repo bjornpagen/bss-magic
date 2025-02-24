@@ -263,7 +263,14 @@ function openApiSchemaToZodAst(
 					([, value]) => value === ref
 				)?.[0]
 				if (typeValue) {
-					const subAst = openApiSchemaToZodAst(subSchema, refResolver, openapi)
+					// Resolve the reference to get the actual schema
+					const resolvedSchema = resolveRef(openapi, ref)
+					// Convert the resolved schema to Zod AST
+					const subAst = openApiSchemaToZodAst(
+						resolvedSchema,
+						refResolver,
+						openapi
+					)
 					if (subAst.type === "object") {
 						const extendedProperties = { ...subAst.properties }
 						extendedProperties[discriminatorProp] = {
@@ -280,9 +287,12 @@ function openApiSchemaToZodAst(
 							description: subAst.description
 						})
 					} else {
-						throw new Error("Subschema in oneOf must be an object")
+						throw new Error("Resolved subschema in oneOf must be an object")
 					}
 				}
+			} else {
+				// Handle inline subschemas (optional, based on schema needs)
+				// For now, skip since input uses references
 			}
 		}
 		return {
