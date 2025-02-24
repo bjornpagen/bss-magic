@@ -72,16 +72,6 @@ type OpenAPISchema = {
 	>
 }
 
-/** Parameter object in OpenAPI */
-type OpenAPIParameter = {
-	$ref?: string
-	in: string
-	name: string
-	required?: boolean
-	schema: OpenAPISchema
-	description?: string
-}
-
 /** Zod Abstract Syntax Tree (AST) for type-safe schema representation */
 type ZodAST =
 	| {
@@ -106,32 +96,6 @@ type ZodAST =
 			description?: string
 	  }
 
-type OpenAPIOperation = {
-	parameters?: Array<OpenAPIParameter>
-	responses?: Record<
-		string,
-		{
-			$ref?: string
-			description?: string
-			content?: Record<
-				string,
-				{
-					schema: OpenAPISchema
-				}
-			>
-		}
-	>
-	requestBody?: {
-		$ref?: string
-		content?: Record<
-			string,
-			{
-				schema: OpenAPISchema
-			}
-		>
-	}
-}
-
 // ### Utility Functions
 
 /** Extracts schema name from a $ref string */
@@ -141,72 +105,6 @@ function getSchemaNameFromRef(ref: string): string | null {
 		return parts[parts.length - 1]
 	}
 	return null
-}
-
-/** Collects all schema names referenced by a schema */
-function getReferencedSchemas(schema: OpenAPISchema): Set<string> {
-	const refs = new Set<string>()
-
-	if (schema.$ref) {
-		const schemaName = getSchemaNameFromRef(schema.$ref)
-		if (schemaName) {
-			refs.add(schemaName)
-		}
-	} else if (schema.allOf) {
-		for (const subSchema of schema.allOf) {
-			const subRefs = getReferencedSchemas(subSchema)
-			for (const ref of subRefs) {
-				refs.add(ref)
-			}
-		}
-	} else if (schema.oneOf) {
-		for (const subSchema of schema.oneOf) {
-			const subRefs = getReferencedSchemas(subSchema)
-			for (const ref of subRefs) {
-				refs.add(ref)
-			}
-		}
-	} else if (schema.properties) {
-		for (const propSchema of Object.values(schema.properties)) {
-			const subRefs = getReferencedSchemas(propSchema)
-			for (const ref of subRefs) {
-				refs.add(ref)
-			}
-		}
-	} else if (schema.type === "array" && schema.items) {
-		const subRefs = getReferencedSchemas(schema.items)
-		for (const ref of subRefs) {
-			refs.add(ref)
-		}
-	}
-
-	return refs
-}
-
-/** Performs a topological sort on schema names based on dependencies */
-function topologicalSort(
-	nodes: string[],
-	dependencies: Record<string, string[]>
-): string[] {
-	const visited = new Set<string>()
-	const result: string[] = []
-
-	function dfs(node: string) {
-		if (visited.has(node)) {
-			return
-		}
-		visited.add(node)
-		for (const dep of dependencies[node] || []) {
-			dfs(dep)
-		}
-		result.push(node)
-	}
-
-	for (const node of nodes) {
-		dfs(node)
-	}
-
-	return result
 }
 
 /** Resolves an OpenAPI $ref to the actual schema object */
@@ -467,7 +365,7 @@ function generateZodCode(ast: ZodAST): string {
 			return code
 		}
 		case "reference":
-			return ast.ref
+			return `z.lazy(() => ${ast.ref})`
 		case "literal": {
 			let code = `z.literal(${JSON.stringify(ast.value)})`
 			if (ast.description) {
@@ -516,111 +414,6 @@ function getSchemaVariable(ref: string): string {
 		throw new Error(`Invalid schema reference: ${ref}`)
 	}
 	return `${schemaName[0].toLowerCase()}${schemaName.slice(1)}Schema`
-}
-
-/** Collects all schema names used in the operation's request and response, including dependencies */
-function collectUsedSchemas(
-	operation: OpenAPIOperation,
-	openapi: OpenAPISchema
-): Set<string> {
-	const usedSchemas = new Set<string>()
-	const schemas = openapi.components?.schemas || {}
-
-	function collectRefs(schema: OpenAPISchema) {
-		if (schema.$ref) {
-			const schemaName = getSchemaNameFromRef(schema.$ref)
-			if (schemaName) {
-				usedSchemas.add(schemaName)
-				if (schemas[schemaName]) {
-					collectRefs(schemas[schemaName])
-				}
-			}
-		} else if (schema.allOf) {
-			for (const subSchema of schema.allOf) {
-				collectRefs(subSchema)
-			}
-		} else if (schema.oneOf) {
-			for (const subSchema of schema.oneOf) {
-				collectRefs(subSchema)
-			}
-		} else if (schema.properties) {
-			for (const propSchema of Object.values(schema.properties)) {
-				collectRefs(propSchema)
-			}
-		} else if (schema.type === "array" && schema.items) {
-			collectRefs(schema.items)
-		}
-	}
-
-	if (operation.parameters) {
-		for (const param of operation.parameters) {
-			let paramSchema = param.schema
-			if (param.$ref) {
-				const resolved = resolveRef(openapi, param.$ref) as OpenAPIParameter
-				paramSchema = resolved.schema
-			}
-			if (paramSchema) {
-				collectRefs(paramSchema)
-			}
-		}
-	}
-
-	if (operation.requestBody) {
-		let requestBody = operation.requestBody
-		if (requestBody.$ref) {
-			requestBody = resolveRef(openapi, requestBody.$ref)
-		}
-		if (requestBody.content?.["application/json"]?.schema) {
-			collectRefs(requestBody.content["application/json"].schema)
-		}
-	}
-
-	if (operation.responses) {
-		for (const response of Object.values(operation.responses)) {
-			let resp = response
-			if (resp.$ref) {
-				resp = resolveRef(openapi, resp.$ref)
-			}
-			if (resp.content?.["application/json"]?.schema) {
-				collectRefs(resp.content["application/json"].schema)
-			}
-		}
-	}
-
-	return usedSchemas
-}
-
-/** Generates Zod schema definitions only for used schemas */
-function generateSchemaDefinitions(
-	openapi: OpenAPISchema,
-	usedSchemas: Set<string>
-): string[] {
-	const definitions: string[] = []
-	const schemas = openapi.components?.schemas || {}
-	const dependencies: Record<string, string[]> = {}
-
-	for (const schemaName of Object.keys(schemas)) {
-		if (usedSchemas.has(schemaName)) {
-			const schema = schemas[schemaName]
-			const referenced = getReferencedSchemas(schema)
-			dependencies[schemaName] = Array.from(referenced).filter((dep) =>
-				usedSchemas.has(dep)
-			)
-		}
-	}
-
-	const orderedSchemaNames = topologicalSort(
-		Array.from(usedSchemas),
-		dependencies
-	)
-	for (const schemaName of orderedSchemaNames) {
-		const schema = schemas[schemaName]
-		const variableName = getSchemaVariable(`#/components/schemas/${schemaName}`)
-		const ast = openApiSchemaToZodAst(schema, getSchemaVariable, openapi)
-		const code = generateZodCode(ast)
-		definitions.push(`const ${variableName} = ${code};`)
-	}
-	return definitions
 }
 
 /** Gets the Zod AST for a response's body schema */
@@ -804,11 +597,20 @@ function transformOpenApiToZod(openapi: OpenAPISchema): string {
 	const method = Object.keys(pathOperations)[0]
 	const operation = pathOperations[method]
 
-	const usedSchemas = collectUsedSchemas(operation, openapi)
+	// Generate all schema definitions
+	const schemas = openapi.components?.schemas || {}
+	const schemaDefs: string[] = []
+	for (const [schemaName, schema] of Object.entries(schemas)) {
+		const variableName = getSchemaVariable(`#/components/schemas/${schemaName}`)
+		const ast = openApiSchemaToZodAst(schema, getSchemaVariable, openapi)
+		const code = generateZodCode(ast)
+		schemaDefs.push(`const ${variableName} = ${code};`)
+	}
 
-	const schemaDefs = generateSchemaDefinitions(openapi, usedSchemas)
-
+	// Generate response schemas
 	const responseDefs = generateResponseSchemas(operation, openapi)
+
+	// Generate request schema
 	const requestCode = generateRequestSchema(
 		operation,
 		openapi,
