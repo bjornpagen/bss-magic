@@ -191,24 +191,49 @@ function openApiSchemaToZodAst(
 	}
 
 	if (schema.allOf) {
-		const subschemaAsts: ZodAST[] = schema.allOf.map((subSchema) => {
-			if (subSchema.$ref) {
-				const schemaName = getSchemaNameFromRef(subSchema.$ref)
-				if (schemaName) {
-					return {
-						type: "reference" as const,
-						ref: refResolver(subSchema.$ref),
-						description: subSchema.description
-					}
+		const properties: Record<string, ZodAST> = {}
+		const required: Set<string> = new Set(schema.required || [])
+
+		for (const subSchema of schema.allOf) {
+			const subAst = openApiSchemaToZodAst(subSchema, refResolver, openapi)
+			if (subAst.type === "object") {
+				// Merge properties from object subschemas
+				for (const [propName, propAst] of Object.entries(subAst.properties)) {
+					properties[propName] = propAst
+				}
+				// Merge required fields from object subschemas
+				for (const req of subAst.required) {
+					required.add(req)
+				}
+			} else if (subAst.type === "reference") {
+				if (!subSchema.$ref) {
+					throw new Error("Reference schema must have a $ref property")
 				}
 				const resolvedSchema = resolveRef(openapi, subSchema.$ref)
-				return openApiSchemaToZodAst(resolvedSchema, refResolver, openapi)
+				const resolvedAst = openApiSchemaToZodAst(
+					resolvedSchema,
+					refResolver,
+					openapi
+				)
+				if (resolvedAst.type === "object") {
+					for (const [propName, propAst] of Object.entries(
+						resolvedAst.properties
+					)) {
+						properties[propName] = propAst
+					}
+					for (const req of resolvedAst.required) {
+						required.add(req)
+					}
+				}
 			}
-			return openApiSchemaToZodAst(subSchema, refResolver, openapi)
-		})
+			// Note: Non-object subschemas in allOf are not merged into properties
+			// This assumes allOf is primarily used to combine object schemas
+		}
+
 		return {
-			type: "merge",
-			schemas: subschemaAsts,
+			type: "object",
+			properties,
+			required: Array.from(required),
 			description: schema.description
 		}
 	}
