@@ -50,22 +50,13 @@ const errorSchema = extensibleSchema
 		"Used when an API throws an Error, typically with a HTTP error response-code (3xx, 4xx, 5xx)"
 	)
 
-const successResponseSchema = z
-	.object({ status: z.literal("success") })
-	.describe("Deleted")
+export const responseSchema = z.union([
+	z.object({ status: z.literal(204), body: z.undefined() }),
+	z.object({ status: z.number(), body: errorSchema })
+])
 
-const errorResponseSchema = z.object({
-	status: z.literal("error"),
-	error: errorSchema
+export const requestSchema = z.object({
+	path: z.object({ id: z.string() }),
+	query: z.object({}),
+	body: z.undefined()
 })
-
-export const responseSchema = z
-	.discriminatedUnion("status", [successResponseSchema, errorResponseSchema])
-	.describe("Response for DELETE /hub/{id}")
-
-export const requestSchema = z
-	.object({
-		params: z.object({ id: z.string().describe("Identifier of the Resource") }),
-		body: z.undefined()
-	})
-	.describe("Request schema for DELETE /hub/{id}")
