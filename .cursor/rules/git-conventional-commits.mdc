@@ -1,6 +1,7 @@
 ---
 description: Git conventional commits
 globs: 
+alwaysApply: false
 ---
 # Git Conventional Commits
 

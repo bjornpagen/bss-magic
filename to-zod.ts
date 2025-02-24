@@ -334,20 +334,15 @@ function getSchemaVariable(ref: string): string {
 }
 
 /**
- * Generates Zod schema definitions for all components.schemas in the correct order
+ * Generates Zod schema definitions for all components.schemas
  * @param openapi OpenAPI schema object
  * @returns Array of schema definition strings
  */
 function generateSchemaDefinitions(openapi: OpenAPISchema): string[] {
 	const definitions: string[] = []
 	const schemas = openapi.components?.schemas || {}
-	const orderedSchemaNames = ["Extensible", "Error"] // Adjust order based on dependencies
-
-	for (const schemaName of orderedSchemaNames) {
+	for (const schemaName of Object.keys(schemas)) {
 		const schema = schemas[schemaName]
-		if (!schema) {
-			continue
-		}
 		const variableName = getSchemaVariable(`#/components/schemas/${schemaName}`)
 		const ast = openApiSchemaToZodAst(schema, getSchemaVariable)
 		const code = generateZodCode(ast)
@@ -550,11 +545,15 @@ function generateRequestSchema(
 function transformOpenApiToZod(openapi: OpenAPISchema): string {
 	const schemaDefs = generateSchemaDefinitions(openapi)
 
-	// For this example, we'll still focus on DELETE /hub/{id}, but the functions are generalized
-	const operation = openapi.paths?.["/hub/{id}"]?.delete
-	if (!operation) {
-		throw new Error("Operation DELETE /hub/{id} not found")
+	// Dynamically select the first path and method
+	const paths = openapi.paths
+	if (!paths || Object.keys(paths).length === 0) {
+		throw new Error("No paths found in OpenAPI schema")
 	}
+	const pathKey = Object.keys(paths)[0]
+	const pathOperations = paths[pathKey]
+	const method = Object.keys(pathOperations)[0]
+	const operation = pathOperations[method]
 
 	const responseDefs = generateResponseSchemas(operation, openapi)
 	const requestCode = generateRequestSchema(
