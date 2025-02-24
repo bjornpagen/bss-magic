@@ -72,6 +72,16 @@ type OpenAPISchema = {
 	>
 }
 
+/** Parameter object in OpenAPI */
+type OpenAPIParameter = {
+	$ref?: string
+	in: string
+	name: string
+	required?: boolean
+	schema: OpenAPISchema
+	description?: string
+}
+
 /** Zod Abstract Syntax Tree (AST) for type-safe schema representation */
 type ZodAST =
 	| {
@@ -97,14 +107,7 @@ type ZodAST =
 	  }
 
 type OpenAPIOperation = {
-	parameters?: Array<{
-		$ref?: string
-		in: string
-		name: string
-		required?: boolean
-		schema: OpenAPISchema
-		description?: string
-	}>
+	parameters?: Array<OpenAPIParameter>
 	responses?: Record<
 		string,
 		{
@@ -127,17 +130,6 @@ type OpenAPIOperation = {
 			}
 		>
 	}
-}
-
-type OpenAPIResponse = {
-	$ref?: string
-	description?: string
-	content?: Record<
-		string,
-		{
-			schema: OpenAPISchema
-		}
-	>
 }
 
 // ### Utility Functions
@@ -263,9 +255,7 @@ function openApiSchemaToZodAst(
 					([, value]) => value === ref
 				)?.[0]
 				if (typeValue) {
-					// Resolve the reference to get the actual schema
 					const resolvedSchema = resolveRef(openapi, ref)
-					// Convert the resolved schema to Zod AST
 					const subAst = openApiSchemaToZodAst(
 						resolvedSchema,
 						refResolver,
@@ -533,57 +523,66 @@ function collectUsedSchemas(
 	operation: OpenAPIOperation,
 	openapi: OpenAPISchema
 ): Set<string> {
-	const directRefs = new Set<string>()
+	const usedSchemas = new Set<string>()
 	const schemas = openapi.components?.schemas || {}
 
-	// Helper function to collect direct references from a schema
-	function collectDirectRefs(schema: OpenAPISchema) {
-		const refs = getReferencedSchemas(schema)
-		for (const ref of refs) {
-			directRefs.add(ref)
+	function collectRefs(schema: OpenAPISchema) {
+		if (schema.$ref) {
+			const schemaName = getSchemaNameFromRef(schema.$ref)
+			if (schemaName) {
+				usedSchemas.add(schemaName)
+				if (schemas[schemaName]) {
+					collectRefs(schemas[schemaName])
+				}
+			}
+		} else if (schema.allOf) {
+			for (const subSchema of schema.allOf) {
+				collectRefs(subSchema)
+			}
+		} else if (schema.oneOf) {
+			for (const subSchema of schema.oneOf) {
+				collectRefs(subSchema)
+			}
+		} else if (schema.properties) {
+			for (const propSchema of Object.values(schema.properties)) {
+				collectRefs(propSchema)
+			}
+		} else if (schema.type === "array" && schema.items) {
+			collectRefs(schema.items)
 		}
 	}
 
-	// Collect from request body
+	if (operation.parameters) {
+		for (const param of operation.parameters) {
+			let paramSchema = param.schema
+			if (param.$ref) {
+				const resolved = resolveRef(openapi, param.$ref) as OpenAPIParameter
+				paramSchema = resolved.schema
+			}
+			if (paramSchema) {
+				collectRefs(paramSchema)
+			}
+		}
+	}
+
 	if (operation.requestBody) {
 		let requestBody = operation.requestBody
 		if (requestBody.$ref) {
 			requestBody = resolveRef(openapi, requestBody.$ref)
 		}
 		if (requestBody.content?.["application/json"]?.schema) {
-			const schema = requestBody.content["application/json"].schema
-			collectDirectRefs(schema)
+			collectRefs(requestBody.content["application/json"].schema)
 		}
 	}
 
-	// Collect from responses
 	if (operation.responses) {
 		for (const response of Object.values(operation.responses)) {
-			let resp = response as OpenAPIResponse
+			let resp = response
 			if (resp.$ref) {
 				resp = resolveRef(openapi, resp.$ref)
 			}
 			if (resp.content?.["application/json"]?.schema) {
-				const schema = resp.content["application/json"].schema
-				collectDirectRefs(schema)
-			}
-		}
-	}
-
-	// Build the full set of used schemas including dependencies
-	const usedSchemas = new Set(directRefs)
-	const toProcess = Array.from(directRefs)
-
-	while (toProcess.length > 0) {
-		const schemaName = toProcess.pop()
-		if (schemaName && schemas[schemaName]) {
-			const schema = schemas[schemaName]
-			const refs = getReferencedSchemas(schema)
-			for (const ref of refs) {
-				if (!usedSchemas.has(ref)) {
-					usedSchemas.add(ref)
-					toProcess.push(ref)
-				}
+				collectRefs(resp.content["application/json"].schema)
 			}
 		}
 	}
@@ -600,12 +599,10 @@ function generateSchemaDefinitions(
 	const schemas = openapi.components?.schemas || {}
 	const dependencies: Record<string, string[]> = {}
 
-	// Build dependency graph only for used schemas
 	for (const schemaName of Object.keys(schemas)) {
 		if (usedSchemas.has(schemaName)) {
 			const schema = schemas[schemaName]
 			const referenced = getReferencedSchemas(schema)
-			// Only include dependencies that are also in usedSchemas
 			dependencies[schemaName] = Array.from(referenced).filter((dep) =>
 				usedSchemas.has(dep)
 			)
@@ -807,10 +804,8 @@ function transformOpenApiToZod(openapi: OpenAPISchema): string {
 	const method = Object.keys(pathOperations)[0]
 	const operation = pathOperations[method]
 
-	// Collect only the schemas directly used in the operation
 	const usedSchemas = collectUsedSchemas(operation, openapi)
 
-	// Generate schema definitions only for used schemas
 	const schemaDefs = generateSchemaDefinitions(openapi, usedSchemas)
 
 	const responseDefs = generateResponseSchemas(operation, openapi)
