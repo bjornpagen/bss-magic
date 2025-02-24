@@ -9,6 +9,7 @@ type OpenAPISchema = {
 	allOf?: OpenAPISchema[]
 	oneOf?: OpenAPISchema[]
 	type?: string
+	format?: string
 	properties?: Record<string, OpenAPISchema>
 	required?: string[]
 	description?: string
@@ -60,12 +61,7 @@ type OpenAPISchema = {
 				>
 				requestBody?: {
 					$ref?: string
-					content?: Record<
-						string,
-						{
-							schema: OpenAPISchema
-						}
-					>
+					content?: Record<string, { schema: OpenAPISchema }>
 				}
 			}
 		}
@@ -95,6 +91,8 @@ type ZodAST =
 			options: ZodAST[]
 			description?: string
 	  }
+	| { type: "coerce"; schema: ZodAST; description?: string }
+	| { type: "datetime"; description?: string }
 
 // ### Utility Functions
 
@@ -127,7 +125,8 @@ function resolveRef(openapi: OpenAPISchema, ref: string): OpenAPISchema {
 function openApiSchemaToZodAst(
 	schema: OpenAPISchema,
 	refResolver: (ref: string) => string,
-	openapi: OpenAPISchema
+	openapi: OpenAPISchema,
+	options: { coerce?: boolean } = {}
 ): ZodAST {
 	if (schema.$ref) {
 		const schemaName = getSchemaNameFromRef(schema.$ref)
@@ -139,7 +138,7 @@ function openApiSchemaToZodAst(
 			}
 		}
 		const resolvedSchema = resolveRef(openapi, schema.$ref)
-		return openApiSchemaToZodAst(resolvedSchema, refResolver, openapi)
+		return openApiSchemaToZodAst(resolvedSchema, refResolver, openapi, options)
 	}
 
 	if (schema.oneOf && schema.discriminator) {
@@ -157,7 +156,8 @@ function openApiSchemaToZodAst(
 					const subAst = openApiSchemaToZodAst(
 						resolvedSchema,
 						refResolver,
-						openapi
+						openapi,
+						options
 					)
 					if (subAst.type === "object") {
 						const extendedProperties = { ...subAst.properties }
@@ -179,8 +179,7 @@ function openApiSchemaToZodAst(
 					}
 				}
 			} else {
-				// Handle inline subschemas (optional, based on schema needs)
-				// For now, skip since input uses references
+				// Handle inline subschemas if needed
 			}
 		}
 		return {
@@ -196,7 +195,12 @@ function openApiSchemaToZodAst(
 		const required: Set<string> = new Set(schema.required || [])
 
 		for (const subSchema of schema.allOf) {
-			const subAst = openApiSchemaToZodAst(subSchema, refResolver, openapi)
+			const subAst = openApiSchemaToZodAst(
+				subSchema,
+				refResolver,
+				openapi,
+				options
+			)
 			if (subAst.type === "object") {
 				for (const [propName, propAst] of Object.entries(subAst.properties)) {
 					properties[propName] = propAst
@@ -212,7 +216,8 @@ function openApiSchemaToZodAst(
 				const resolvedAst = openApiSchemaToZodAst(
 					resolvedSchema,
 					refResolver,
-					openapi
+					openapi,
+					options
 				)
 				if (resolvedAst.type === "object") {
 					for (const [propName, propAst] of Object.entries(
@@ -245,7 +250,8 @@ function openApiSchemaToZodAst(
 			properties[propName] = openApiSchemaToZodAst(
 				propSchema,
 				refResolver,
-				openapi
+				openapi,
+				options
 			)
 		}
 		return {
@@ -267,7 +273,8 @@ function openApiSchemaToZodAst(
 				properties[propName] = openApiSchemaToZodAst(
 					propSchema,
 					refResolver,
-					openapi
+					openapi,
+					options
 				)
 			}
 			return {
@@ -278,6 +285,9 @@ function openApiSchemaToZodAst(
 			}
 		}
 		case "string": {
+			if (schema.format === "date-time") {
+				return { type: "datetime", description: schema.description }
+			}
 			if (schema.enum) {
 				if (!Array.isArray(schema.enum)) {
 					throw new Error("Enum must be an array of strings")
@@ -291,14 +301,25 @@ function openApiSchemaToZodAst(
 			return { type: "string", description: schema.description }
 		}
 		case "number":
-			return { type: "number", description: schema.description }
+		case "integer": {
+			let ast: ZodAST = { type: "number", description: schema.description }
+			if (options.coerce) {
+				ast = { type: "coerce", schema: ast, description: schema.description }
+			}
+			return ast
+		}
 		case "boolean":
 			return { type: "boolean", description: schema.description }
 		case "array": {
 			if (!schema.items) {
 				throw new Error("Array schema must include an 'items' definition")
 			}
-			const itemsAst = openApiSchemaToZodAst(schema.items, refResolver, openapi)
+			const itemsAst = openApiSchemaToZodAst(
+				schema.items,
+				refResolver,
+				openapi,
+				options
+			)
 			return { type: "array", items: itemsAst, description: schema.description }
 		}
 		default:
@@ -403,6 +424,19 @@ function generateZodCode(ast: ZodAST): string {
 			}
 			return code
 		}
+		case "coerce": {
+			if (ast.schema.type === "number") {
+				return "z.coerce.number()"
+			}
+			throw new Error("Coercion only supported for number schemas")
+		}
+		case "datetime": {
+			let code = "z.string().datetime()"
+			if (ast.description) {
+				code += `.describe(${JSON.stringify(ast.description)})`
+			}
+			return code
+		}
 	}
 }
 
@@ -478,9 +512,7 @@ function generateResponseSchemas(
 		branches.push(defaultBranch)
 	}
 
-	const responseSchemaCode = `export const responseSchema = z.union([${branches.join(
-		", "
-	)}])`
+	const responseSchemaCode = `export const responseSchema = z.union([${branches.join(", ")}])`
 	return [responseSchemaCode]
 }
 
@@ -512,13 +544,17 @@ function generateRequestSchema(
 		description?: string
 	}
 
-	let params = operation.parameters || []
-	params = params.map((param) =>
-		param.$ref ? (resolveRef(openapi, param.$ref) as Parameter) : param
-	)
+	// Process parameters, resolving any references
+	const rawParams = operation.parameters || []
+	const params: Parameter[] = rawParams.map((param) => {
+		if (param.$ref) {
+			return resolveRef(openapi, param.$ref) as Parameter
+		}
+		return param
+	})
 
-	const pathParams = params.filter((p) => p.in === "path")
-	const queryParams = params.filter((p) => p.in === "query")
+	const pathParams = params.filter((p: Parameter) => p.in === "path")
+	const queryParams = params.filter((p: Parameter) => p.in === "query")
 
 	const pathSchemaAst: ZodAST = {
 		type: "object",
@@ -548,7 +584,9 @@ function generateRequestSchema(
 		if (!param.schema) {
 			throw new Error(`Parameter ${param.name} has no schema`)
 		}
-		const paramAst = openApiSchemaToZodAst(param.schema, refResolver, openapi)
+		const paramAst = openApiSchemaToZodAst(param.schema, refResolver, openapi, {
+			coerce: true
+		})
 		if (param.description) {
 			paramAst.description = param.description
 		}
