@@ -616,6 +616,7 @@ function generateResponseSchemas(
 
 /** Generates the request schema for a specific operation */
 function generateRequestSchema(
+	method: string,
 	operation: {
 		parameters?: Array<{
 			$ref?: string
@@ -712,11 +713,12 @@ function generateRequestSchema(
 	const requestAst: ZodAST = {
 		type: "object",
 		properties: {
+			method: { type: "literal", value: method },
 			path: pathSchemaAst,
 			query: querySchemaAst,
 			body: bodyAst
 		},
-		required: ["path", "query", "body"]
+		required: ["method", "path", "query", "body"]
 	}
 
 	return `export const requestSchema = ${generateZodCode(requestAst)};`
@@ -748,6 +750,7 @@ function transformOpenApiToZod(openapi: OpenAPISchema): string {
 
 	// Generate request schema
 	const requestCode = generateRequestSchema(
+		method,
 		operation,
 		openapi,
 		getSchemaVariable
