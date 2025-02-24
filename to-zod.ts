@@ -85,6 +85,50 @@ type ZodAST =
 	| { type: "merge"; schemas: ZodAST[]; description?: string }
 	| { type: "undefined"; description?: string }
 
+type OpenAPIOperation = {
+	parameters?: Array<{
+		$ref?: string
+		in: string
+		name: string
+		required?: boolean
+		schema: OpenAPISchema
+		description?: string
+	}>
+	responses?: Record<
+		string,
+		{
+			$ref?: string
+			description?: string
+			content?: Record<
+				string,
+				{
+					schema: OpenAPISchema
+				}
+			>
+		}
+	>
+	requestBody?: {
+		$ref?: string
+		content?: Record<
+			string,
+			{
+				schema: OpenAPISchema
+			}
+		>
+	}
+}
+
+type OpenAPIResponse = {
+	$ref?: string
+	description?: string
+	content?: Record<
+		string,
+		{
+			schema: OpenAPISchema
+		}
+	>
+}
+
 // ### Utility Functions
 
 /** Extracts schema name from a $ref string */
@@ -197,11 +241,9 @@ function openApiSchemaToZodAst(
 		for (const subSchema of schema.allOf) {
 			const subAst = openApiSchemaToZodAst(subSchema, refResolver, openapi)
 			if (subAst.type === "object") {
-				// Merge properties from object subschemas
 				for (const [propName, propAst] of Object.entries(subAst.properties)) {
 					properties[propName] = propAst
 				}
-				// Merge required fields from object subschemas
 				for (const req of subAst.required) {
 					required.add(req)
 				}
@@ -226,8 +268,6 @@ function openApiSchemaToZodAst(
 					}
 				}
 			}
-			// Note: Non-object subschemas in allOf are not merged into properties
-			// This assumes allOf is primarily used to combine object schemas
 		}
 
 		return {
@@ -409,17 +449,77 @@ function getSchemaVariable(ref: string): string {
 	return `${schemaName[0].toLowerCase()}${schemaName.slice(1)}Schema`
 }
 
-/** Generates Zod schema definitions for all components.schemas in dependency order */
-function generateSchemaDefinitions(openapi: OpenAPISchema): string[] {
+/** Collects all schema names used in the operation's request and response */
+function collectUsedSchemas(
+	operation: OpenAPIOperation,
+	openapi: OpenAPISchema
+): Set<string> {
+	const usedSchemas = new Set<string>()
+
+	// Collect from request body
+	if (operation.requestBody) {
+		let requestBody = operation.requestBody
+		if (requestBody.$ref) {
+			requestBody = resolveRef(openapi, requestBody.$ref)
+		}
+		if (requestBody.content?.["application/json"]?.schema) {
+			const schema = requestBody.content["application/json"].schema
+			if (schema.$ref) {
+				const schemaName = getSchemaNameFromRef(schema.$ref)
+				if (schemaName) {
+					usedSchemas.add(schemaName)
+				}
+			}
+		}
+	}
+
+	// Collect from responses
+	if (operation.responses) {
+		for (const response of Object.values(operation.responses)) {
+			let resp = response as OpenAPIResponse
+			if (resp.$ref) {
+				resp = resolveRef(openapi, resp.$ref)
+			}
+			if (resp.content?.["application/json"]?.schema) {
+				const schema = resp.content["application/json"].schema
+				if (schema.$ref) {
+					const schemaName = getSchemaNameFromRef(schema.$ref)
+					if (schemaName) {
+						usedSchemas.add(schemaName)
+					}
+				}
+			}
+		}
+	}
+
+	return usedSchemas
+}
+
+/** Generates Zod schema definitions only for used schemas */
+function generateSchemaDefinitions(
+	openapi: OpenAPISchema,
+	usedSchemas: Set<string>
+): string[] {
 	const definitions: string[] = []
 	const schemas = openapi.components?.schemas || {}
 	const dependencies: Record<string, string[]> = {}
+
+	// Build dependency graph only for used schemas
 	for (const schemaName of Object.keys(schemas)) {
-		const schema = schemas[schemaName]
-		const referenced = getReferencedSchemas(schema)
-		dependencies[schemaName] = Array.from(referenced)
+		if (usedSchemas.has(schemaName)) {
+			const schema = schemas[schemaName]
+			const referenced = getReferencedSchemas(schema)
+			// Only include dependencies that are also in usedSchemas
+			dependencies[schemaName] = Array.from(referenced).filter((dep) =>
+				usedSchemas.has(dep)
+			)
+		}
 	}
-	const orderedSchemaNames = topologicalSort(Object.keys(schemas), dependencies)
+
+	const orderedSchemaNames = topologicalSort(
+		Array.from(usedSchemas),
+		dependencies
+	)
 	for (const schemaName of orderedSchemaNames) {
 		const schema = schemas[schemaName]
 		const variableName = getSchemaVariable(`#/components/schemas/${schemaName}`)
@@ -600,8 +700,6 @@ function generateRequestSchema(
 
 /** Transforms an OpenAPI schema to Zod TypeScript code for a specific operation */
 function transformOpenApiToZod(openapi: OpenAPISchema): string {
-	const schemaDefs = generateSchemaDefinitions(openapi)
-
 	const paths = openapi.paths
 	if (!paths || Object.keys(paths).length === 0) {
 		throw new Error("No paths found in OpenAPI schema")
@@ -610,6 +708,12 @@ function transformOpenApiToZod(openapi: OpenAPISchema): string {
 	const pathOperations = paths[pathKey]
 	const method = Object.keys(pathOperations)[0]
 	const operation = pathOperations[method]
+
+	// Collect only the schemas directly used in the operation
+	const usedSchemas = collectUsedSchemas(operation, openapi)
+
+	// Generate schema definitions only for used schemas
+	const schemaDefs = generateSchemaDefinitions(openapi, usedSchemas)
 
 	const responseDefs = generateResponseSchemas(operation, openapi)
 	const requestCode = generateRequestSchema(
