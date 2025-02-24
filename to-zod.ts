@@ -78,6 +78,7 @@ type OpenAPISchema = {
 				requestBody?: {
 					$ref?: string
 					content?: Record<string, { schema: OpenAPISchema }>
+					required?: boolean // Added to support optional requestBody
 				}
 			}
 		}
@@ -629,6 +630,7 @@ function generateRequestSchema(
 		requestBody?: {
 			$ref?: string
 			content?: Record<string, { schema: OpenAPISchema }>
+			required?: boolean
 		}
 	},
 	openapi: OpenAPISchema,
@@ -696,10 +698,20 @@ function generateRequestSchema(
 	}
 
 	let bodyAst: ZodAST = { type: "undefined" }
+	let isBodyRequired = false
 	if (operation.requestBody) {
-		let requestBody = operation.requestBody
+		let requestBody: {
+			$ref?: string
+			content?: Record<string, { schema: OpenAPISchema }>
+			required?: boolean
+		} = operation.requestBody
 		if (requestBody.$ref) {
-			requestBody = resolveRef(openapi, requestBody.$ref)
+			const resolved = resolveRef(openapi, requestBody.$ref)
+			requestBody = resolved as {
+				$ref?: string
+				content?: Record<string, { schema: OpenAPISchema }>
+				required?: boolean
+			}
 		}
 		if (requestBody.content?.["application/json"]?.schema) {
 			bodyAst = openApiSchemaToZodAst(
@@ -707,21 +719,34 @@ function generateRequestSchema(
 				refResolver,
 				openapi
 			)
+			isBodyRequired = requestBody.required ?? false
 		}
 	}
 
-	const requestAst: ZodAST = {
-		type: "object",
-		properties: {
-			method: { type: "literal", value: method },
-			path: pathSchemaAst,
-			query: querySchemaAst,
-			body: bodyAst
-		},
-		required: ["method", "path", "query", "body"]
+	// Generate Zod code for path, query, and body with coercion to empty object
+	let pathCode = generateZodCode(pathSchemaAst)
+	if (Object.keys(pathSchemaAst.properties).length === 0) {
+		pathCode = `${pathCode}.optional().default({})`
 	}
 
-	return `export const requestSchema = ${generateZodCode(requestAst)};`
+	let queryCode = generateZodCode(querySchemaAst)
+	if (Object.keys(querySchemaAst.properties).length === 0) {
+		queryCode = `${queryCode}.optional().default({})`
+	}
+
+	let bodyCode = generateZodCode(bodyAst)
+	if (!isBodyRequired) {
+		bodyCode = `${bodyCode}.optional()`
+	}
+
+	const requestSchemaCode = `z.object({
+    method: z.literal(${JSON.stringify(method)}),
+    path: ${pathCode},
+    query: ${queryCode},
+    body: ${bodyCode},
+  })`
+
+	return `export const requestSchema = ${requestSchemaCode};`
 }
 
 /** Transforms an OpenAPI schema to Zod TypeScript code for a specific operation */
