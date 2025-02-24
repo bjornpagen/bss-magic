@@ -1,0 +1,25 @@
+{
+	"name": "bss-magic",
+	"module": "index.ts",
+	"type": "module",
+	"devDependencies": {
+		"@biomejs/biome": "1.9.4",
+		"@types/bun": "latest",
+		"@types/js-yaml": "^4.0.9",
+		"i": "^0.3.7"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"scripts": {
+		"dev": "bun run index.ts",
+		"format:write": "biome format --write .",
+		"format:lint": "biome lint --write .",
+		"format": "biome format --write . && biome lint --write ."
+	},
+	"dependencies": {
+		"@apidevtools/swagger-parser": "^10.1.1",
+		"js-yaml": "^4.1.0",
+		"zod": "^3.24.2"
+	}
+}
