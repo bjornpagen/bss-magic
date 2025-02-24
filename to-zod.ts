@@ -110,6 +110,7 @@ type ZodAST =
 	  }
 	| { type: "coerce"; schema: ZodAST; description?: string }
 	| { type: "datetime"; description?: string }
+	| { type: "any"; description?: string } // Added "any" type
 
 // ### Utility Functions
 
@@ -346,10 +347,7 @@ function openApiSchemaToZodAst(
 			break
 		}
 		default:
-			ast = {
-				type: "string",
-				description: schema.description || "Unknown type defaulted to string"
-			}
+			ast = { type: "any", description: schema.description } // Changed to "any"
 	}
 
 	return ast
@@ -468,6 +466,14 @@ function generateZodCode(ast: ZodAST): string {
 		}
 		case "datetime": {
 			let code = "z.string().datetime()"
+			if (ast.description) {
+				code += `.describe(${JSON.stringify(ast.description)})`
+			}
+			return code
+		}
+		case "any": {
+			// Added case for "any"
+			let code = "z.any()"
 			if (ast.description) {
 				code += `.describe(${JSON.stringify(ast.description)})`
 			}
