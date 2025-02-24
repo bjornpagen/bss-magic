@@ -83,7 +83,7 @@ type ZodAST =
 	| { type: "reference"; ref: string; description?: string }
 	| { type: "literal"; value: string | number | boolean; description?: string }
 	| { type: "extend"; base: ZodAST; extension: ZodAST; description?: string }
-	| { type: "allOf"; schemas: ZodAST[]; description?: string }
+	| { type: "merge"; schemas: ZodAST[]; description?: string }
 	| { type: "undefined"; description?: string }
 
 // ### Utility Functions
@@ -220,12 +220,12 @@ function openApiSchemaToZodAst(
 				description: schema.description
 			}
 		}
-		const allOfSchemas = schema.allOf.map((s) =>
+		const schemas = schema.allOf.map((s) =>
 			openApiSchemaToZodAst(s, refResolver)
 		)
 		return {
-			type: "allOf",
-			schemas: allOfSchemas,
+			type: "merge",
+			schemas,
 			description: schema.description
 		}
 	}
@@ -368,13 +368,13 @@ function generateZodCode(ast: ZodAST): string {
 			}
 			return code
 		}
-		case "allOf": {
+		case "merge": {
 			if (ast.schemas.length === 0) {
-				throw new Error("allOf must have at least one schema")
+				throw new Error("Merge must have at least one schema")
 			}
 			let code = generateZodCode(ast.schemas[0])
 			for (let i = 1; i < ast.schemas.length; i++) {
-				code = `z.intersection(${code}, ${generateZodCode(ast.schemas[i])})`
+				code = `${code}.merge(${generateZodCode(ast.schemas[i])})`
 			}
 			if (ast.description) {
 				code += `.describe(${JSON.stringify(ast.description)})`
