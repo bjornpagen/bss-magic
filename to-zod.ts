@@ -31,6 +31,14 @@ type OpenAPISchema = {
 						schema: OpenAPISchema
 					}
 				>
+				headers?: Record<
+					string,
+					{
+						$ref?: string
+						schema?: OpenAPISchema
+						required?: boolean
+					}
+				>
 			}
 		>
 	}
@@ -55,6 +63,14 @@ type OpenAPISchema = {
 							string,
 							{
 								schema: OpenAPISchema
+							}
+						>
+						headers?: Record<
+							string,
+							{
+								$ref?: string
+								schema?: OpenAPISchema
+								required?: boolean
 							}
 						>
 					}
@@ -126,7 +142,7 @@ function openApiSchemaToZodAst(
 	schema: OpenAPISchema,
 	refResolver: (ref: string) => string,
 	openapi: OpenAPISchema,
-	options: { coerce?: boolean } = {}
+	options: { coerce?: boolean; isHeader?: boolean } = {}
 ): ZodAST {
 	if (schema.$ref) {
 		const schemaName = getSchemaNameFromRef(schema.$ref)
@@ -262,6 +278,7 @@ function openApiSchemaToZodAst(
 		}
 	}
 
+	let ast: ZodAST
 	switch (schema.type) {
 		case "object": {
 			const properties: Record<string, ZodAST> = {}
@@ -277,39 +294,43 @@ function openApiSchemaToZodAst(
 					options
 				)
 			}
-			return {
+			ast = {
 				type: "object",
 				properties,
 				required,
 				description: schema.description
 			}
+			break
 		}
 		case "string": {
 			if (schema.format === "date-time") {
-				return { type: "datetime", description: schema.description }
-			}
-			if (schema.enum) {
+				ast = { type: "datetime", description: schema.description }
+			} else if (schema.enum) {
 				if (!Array.isArray(schema.enum)) {
 					throw new Error("Enum must be an array of strings")
 				}
-				return {
+				ast = {
 					type: "enum",
 					values: schema.enum,
 					description: schema.description
 				}
+			} else {
+				ast = { type: "string", description: schema.description }
 			}
-			return { type: "string", description: schema.description }
+			break
 		}
 		case "number":
 		case "integer": {
-			let ast: ZodAST = { type: "number", description: schema.description }
+			ast = { type: "number", description: schema.description }
 			if (options.coerce) {
 				ast = { type: "coerce", schema: ast, description: schema.description }
 			}
-			return ast
+			break
 		}
-		case "boolean":
-			return { type: "boolean", description: schema.description }
+		case "boolean": {
+			ast = { type: "boolean", description: schema.description }
+			break
+		}
 		case "array": {
 			if (!schema.items) {
 				throw new Error("Array schema must include an 'items' definition")
@@ -320,14 +341,23 @@ function openApiSchemaToZodAst(
 				openapi,
 				options
 			)
-			return { type: "array", items: itemsAst, description: schema.description }
+			ast = { type: "array", items: itemsAst, description: schema.description }
+			break
 		}
 		default:
-			return {
+			ast = {
 				type: "string",
 				description: schema.description || "Unknown type defaulted to string"
 			}
 	}
+
+	// For headers, coerce number and boolean types since headers are strings in HTTP
+	if (options.isHeader) {
+		if (ast.type === "number" || ast.type === "boolean") {
+			return { type: "coerce", schema: ast, description: ast.description }
+		}
+	}
+	return ast
 }
 
 /** Generates TypeScript code using Zod from a Zod AST */
@@ -426,9 +456,20 @@ function generateZodCode(ast: ZodAST): string {
 		}
 		case "coerce": {
 			if (ast.schema.type === "number") {
-				return "z.coerce.number()"
+				let code = "z.coerce.number()"
+				if (ast.description) {
+					code += `.describe(${JSON.stringify(ast.description)})`
+				}
+				return code
 			}
-			throw new Error("Coercion only supported for number schemas")
+			if (ast.schema.type === "boolean") {
+				let code = "z.coerce.boolean()"
+				if (ast.description) {
+					code += `.describe(${JSON.stringify(ast.description)})`
+				}
+				return code
+			}
+			throw new Error("Coercion only supported for number and boolean schemas")
 		}
 		case "datetime": {
 			let code = "z.string().datetime()"
@@ -472,6 +513,50 @@ function getResponseSchema(
 	return { type: "undefined" }
 }
 
+/** Gets the Zod AST for a response's headers schema */
+function getHeadersSchemaAst(
+	response: OpenAPISchema & {
+		headers?: Record<
+			string,
+			{
+				$ref?: string
+				schema?: OpenAPISchema
+				required?: boolean
+			}
+		>
+	},
+	openapi: OpenAPISchema,
+	refResolver: (ref: string) => string
+): ZodAST {
+	if (response.$ref) {
+		const resolvedResponse = resolveRef(openapi, response.$ref)
+		return getHeadersSchemaAst(resolvedResponse, openapi, refResolver)
+	}
+	const headers = response.headers || {}
+	const properties: Record<string, ZodAST> = {}
+	for (const [headerName, headerDef] of Object.entries(headers)) {
+		let headerSchema: OpenAPISchema
+		if (headerDef.$ref) {
+			headerSchema = resolveRef(openapi, headerDef.$ref)
+		} else {
+			headerSchema = headerDef.schema || {}
+		}
+		const headerAst = openApiSchemaToZodAst(
+			headerSchema,
+			refResolver,
+			openapi,
+			{ isHeader: true }
+		)
+		properties[headerName] = headerAst
+	}
+	return {
+		type: "object",
+		properties,
+		required: [], // Headers are optional unless specified
+		description: "Response headers"
+	}
+}
+
 /** Generates the response schemas for a specific operation */
 function generateResponseSchemas(
 	operation: {
@@ -479,6 +564,10 @@ function generateResponseSchemas(
 			string,
 			OpenAPISchema & {
 				content?: Record<string, { schema: OpenAPISchema }>
+				headers?: Record<
+					string,
+					{ $ref?: string; schema?: OpenAPISchema; required?: boolean }
+				>
 			}
 		>
 	},
@@ -490,18 +579,27 @@ function generateResponseSchemas(
 	let defaultBranch: string | null = null
 
 	for (const [status, response] of Object.entries(responses)) {
-		const responseSchemaAst = getResponseSchema(
-			response,
+		const resolvedResponse = response.$ref
+			? resolveRef(openapi, response.$ref)
+			: response
+		const bodySchemaAst = getResponseSchema(
+			resolvedResponse,
 			openapi,
 			getSchemaVariable
 		)
-		const responseSchemaCode = generateZodCode(responseSchemaAst)
+		const headersSchemaAst = getHeadersSchemaAst(
+			resolvedResponse,
+			openapi,
+			getSchemaVariable
+		)
+		const bodySchemaCode = generateZodCode(bodySchemaAst)
+		const headersSchemaCode = generateZodCode(headersSchemaAst)
 		if (status === "default") {
-			defaultBranch = `z.object({ status: z.number().min(100).max(599), body: ${responseSchemaCode} })`
+			defaultBranch = `z.object({ status: z.number().min(100).max(599), headers: ${headersSchemaCode}, body: ${bodySchemaCode} })`
 		} else if (/^\d+$/.test(status)) {
 			const statusNumber = Number.parseInt(status, 10)
 			branches.push(
-				`z.object({ status: z.literal(${statusNumber}), body: ${responseSchemaCode} })`
+				`z.object({ status: z.literal(${statusNumber}), headers: ${headersSchemaCode}, body: ${bodySchemaCode} })`
 			)
 		} else {
 			throw new Error(`Unsupported status code: ${status}`)
