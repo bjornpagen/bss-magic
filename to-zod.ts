@@ -175,8 +175,36 @@ function resolveRef(openapi: OpenAPISchema, ref: string): OpenAPISchema {
 /** Converts an OpenAPI schema to a Zod AST */
 function openApiSchemaToZodAst(
 	schema: OpenAPISchema,
-	refResolver: (ref: string) => string
+	refResolver: (ref: string) => string,
+	openapi: OpenAPISchema
 ): ZodAST {
+	if (schema.$ref) {
+		const schemaName = getSchemaNameFromRef(schema.$ref)
+		if (schemaName) {
+			return {
+				type: "reference",
+				ref: refResolver(schema.$ref),
+				description: schema.description
+			}
+		}
+		const resolvedSchema = resolveRef(openapi, schema.$ref)
+		return openApiSchemaToZodAst(resolvedSchema, refResolver, openapi)
+	}
+
+	if (schema.allOf) {
+		const schemas = schema.allOf.map((subSchema) => {
+			const resolvedSubSchema = subSchema.$ref
+				? resolveRef(openapi, subSchema.$ref)
+				: subSchema
+			return openApiSchemaToZodAst(resolvedSubSchema, refResolver, openapi)
+		})
+		return {
+			type: "merge",
+			schemas,
+			description: schema.description
+		}
+	}
+
 	if (schema.properties) {
 		const properties: Record<string, ZodAST> = {}
 		const required = schema.required || []
@@ -184,48 +212,16 @@ function openApiSchemaToZodAst(
 		for (const [propName, propSchema] of Object.entries(
 			schemaProperties as Record<string, OpenAPISchema>
 		)) {
-			properties[propName] = openApiSchemaToZodAst(propSchema, refResolver)
+			properties[propName] = openApiSchemaToZodAst(
+				propSchema,
+				refResolver,
+				openapi
+			)
 		}
 		return {
 			type: "object",
 			properties,
 			required,
-			description: schema.description
-		}
-	}
-
-	if (schema.$ref) {
-		if (typeof schema.$ref !== "string") {
-			throw new Error("Invalid $ref value: must be a string")
-		}
-		return {
-			type: "reference",
-			ref: refResolver(schema.$ref),
-			description: schema.description
-		}
-	}
-
-	if (schema.allOf) {
-		if (
-			schema.allOf.length === 2 &&
-			schema.allOf[0].$ref &&
-			(schema.allOf[1].type === "object" || schema.allOf[1].properties)
-		) {
-			const base = openApiSchemaToZodAst(schema.allOf[0], refResolver)
-			const extension = openApiSchemaToZodAst(schema.allOf[1], refResolver)
-			return {
-				type: "extend",
-				base,
-				extension,
-				description: schema.description
-			}
-		}
-		const schemas = schema.allOf.map((s) =>
-			openApiSchemaToZodAst(s, refResolver)
-		)
-		return {
-			type: "merge",
-			schemas,
 			description: schema.description
 		}
 	}
@@ -238,7 +234,11 @@ function openApiSchemaToZodAst(
 			for (const [propName, propSchema] of Object.entries(
 				schemaProperties as Record<string, OpenAPISchema>
 			)) {
-				properties[propName] = openApiSchemaToZodAst(propSchema, refResolver)
+				properties[propName] = openApiSchemaToZodAst(
+					propSchema,
+					refResolver,
+					openapi
+				)
 			}
 			return {
 				type: "object",
@@ -268,7 +268,7 @@ function openApiSchemaToZodAst(
 			if (!schema.items) {
 				throw new Error("Array schema must include an 'items' definition")
 			}
-			const itemsAst = openApiSchemaToZodAst(schema.items, refResolver)
+			const itemsAst = openApiSchemaToZodAst(schema.items, refResolver, openapi)
 			return { type: "array", items: itemsAst, description: schema.description }
 		}
 		default:
@@ -415,7 +415,7 @@ function generateSchemaDefinitions(openapi: OpenAPISchema): string[] {
 	for (const schemaName of orderedSchemaNames) {
 		const schema = schemas[schemaName]
 		const variableName = getSchemaVariable(`#/components/schemas/${schemaName}`)
-		const ast = openApiSchemaToZodAst(schema, getSchemaVariable)
+		const ast = openApiSchemaToZodAst(schema, getSchemaVariable, openapi)
 		const code = generateZodCode(ast)
 		definitions.push(`const ${variableName} = ${code};`)
 	}
@@ -437,7 +437,8 @@ function getResponseSchema(
 	if (response.content?.["application/json"]?.schema) {
 		return openApiSchemaToZodAst(
 			response.content["application/json"].schema,
-			refResolver
+			refResolver,
+			openapi
 		)
 	}
 	return { type: "undefined" }
@@ -532,7 +533,7 @@ function generateRequestSchema(
 		if (!param.schema) {
 			throw new Error(`Parameter ${param.name} has no schema`)
 		}
-		const paramAst = openApiSchemaToZodAst(param.schema, refResolver)
+		const paramAst = openApiSchemaToZodAst(param.schema, refResolver, openapi)
 		if (param.description) {
 			paramAst.description = param.description
 		}
@@ -551,7 +552,7 @@ function generateRequestSchema(
 		if (!param.schema) {
 			throw new Error(`Parameter ${param.name} has no schema`)
 		}
-		const paramAst = openApiSchemaToZodAst(param.schema, refResolver)
+		const paramAst = openApiSchemaToZodAst(param.schema, refResolver, openapi)
 		if (param.description) {
 			paramAst.description = param.description
 		}
@@ -570,7 +571,8 @@ function generateRequestSchema(
 		if (requestBody.content?.["application/json"]?.schema) {
 			bodyAst = openApiSchemaToZodAst(
 				requestBody.content["application/json"].schema,
-				refResolver
+				refResolver,
+				openapi
 			)
 		}
 	}
