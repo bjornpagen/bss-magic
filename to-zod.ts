@@ -529,6 +529,7 @@ function getHeadersSchemaAst(
 	}
 	const headers = response.headers || {}
 	const properties: Record<string, ZodAST> = {}
+	const requiredHeaders: string[] = []
 	for (const [headerName, headerDef] of Object.entries(headers)) {
 		let headerSchema: OpenAPISchema
 		if (headerDef.$ref) {
@@ -547,11 +548,14 @@ function getHeadersSchemaAst(
 		} else {
 			properties[headerName] = headerAst
 		}
+		if (headerDef.required) {
+			requiredHeaders.push(headerName)
+		}
 	}
 	return {
 		type: "object",
 		properties,
-		required: [], // Headers are optional unless specified
+		required: requiredHeaders,
 		description: "Response headers"
 	}
 }
