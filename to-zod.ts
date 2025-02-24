@@ -324,7 +324,7 @@ function openApiSchemaToZodAst(
 		case "number":
 		case "integer": {
 			ast = { type: "number", description: schema.description }
-			if (options.coerce) {
+			if (options.coerce || options.isHeader) {
 				ast = { type: "coerce", schema: ast, description: schema.description }
 			}
 			break
@@ -514,6 +514,13 @@ function getResponseSchema(
 	return { type: "undefined" }
 }
 
+/** Checks if an object is a valid header definition with a schema property */
+function isHeaderDefinition(
+	obj: unknown
+): obj is { schema?: OpenAPISchema; required?: boolean } {
+	return typeof obj === "object" && obj !== null && "schema" in obj
+}
+
 /** Gets the Zod AST for a response's headers schema */
 function getHeadersSchemaAst(
 	response: OpenAPISchema & {
@@ -537,23 +544,31 @@ function getHeadersSchemaAst(
 	const properties: Record<string, ZodAST> = {}
 	const requiredHeaders: string[] = []
 	for (const [headerName, headerDef] of Object.entries(headers)) {
-		let headerSchema: OpenAPISchema
+		let headerSchema: OpenAPISchema = {}
+
 		if (headerDef.$ref) {
-			headerSchema = resolveRef(openapi, headerDef.$ref)
+			const resolvedHeader = resolveRef(openapi, headerDef.$ref)
+
+			if (isHeaderDefinition(resolvedHeader)) {
+				headerSchema = resolvedHeader.schema || {}
+			} else {
+				console.warn(
+					`Resolved header reference ${headerDef.$ref} does not have expected schema structure`
+				)
+			}
 		} else {
 			headerSchema = headerDef.schema || {}
 		}
-		const headerAst = openApiSchemaToZodAst(headerSchema, refResolver, openapi)
-		// If the header is of type number or integer, coerce it
-		if (headerSchema.type === "number" || headerSchema.type === "integer") {
-			properties[headerName] = {
-				type: "coerce",
-				schema: headerAst,
-				description: headerAst.description
+
+		const headerAst = openApiSchemaToZodAst(
+			headerSchema,
+			refResolver,
+			openapi,
+			{
+				isHeader: true
 			}
-		} else {
-			properties[headerName] = headerAst
-		}
+		)
+		properties[headerName] = headerAst
 		if (headerDef.required) {
 			requiredHeaders.push(headerName)
 		}
