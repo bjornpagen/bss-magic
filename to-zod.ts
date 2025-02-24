@@ -7,12 +7,17 @@ import * as path from "node:path"
 type OpenAPISchema = {
 	$ref?: string
 	allOf?: OpenAPISchema[]
+	oneOf?: OpenAPISchema[]
 	type?: string
 	properties?: Record<string, OpenAPISchema>
 	required?: string[]
 	description?: string
 	enum?: string[]
 	items?: OpenAPISchema
+	discriminator?: {
+		propertyName: string
+		mapping?: Record<string, string>
+	}
 	components?: {
 		schemas?: Record<string, OpenAPISchema>
 		responses?: Record<
@@ -84,6 +89,12 @@ type ZodAST =
 	| { type: "literal"; value: string | number | boolean; description?: string }
 	| { type: "merge"; schemas: ZodAST[]; description?: string }
 	| { type: "undefined"; description?: string }
+	| {
+			type: "discriminatedUnion"
+			discriminator: string
+			options: ZodAST[]
+			description?: string
+	  }
 
 type OpenAPIOperation = {
 	parameters?: Array<{
@@ -151,6 +162,13 @@ function getReferencedSchemas(schema: OpenAPISchema): Set<string> {
 		}
 	} else if (schema.allOf) {
 		for (const subSchema of schema.allOf) {
+			const subRefs = getReferencedSchemas(subSchema)
+			for (const ref of subRefs) {
+				refs.add(ref)
+			}
+		}
+	} else if (schema.oneOf) {
+		for (const subSchema of schema.oneOf) {
 			const subRefs = getReferencedSchemas(subSchema)
 			for (const ref of subRefs) {
 				refs.add(ref)
@@ -232,6 +250,47 @@ function openApiSchemaToZodAst(
 		}
 		const resolvedSchema = resolveRef(openapi, schema.$ref)
 		return openApiSchemaToZodAst(resolvedSchema, refResolver, openapi)
+	}
+
+	if (schema.oneOf && schema.discriminator) {
+		const discriminatorProp = schema.discriminator.propertyName
+		const mapping = schema.discriminator.mapping || {}
+		const unionOptions: ZodAST[] = []
+		for (const subSchema of schema.oneOf) {
+			if (subSchema.$ref) {
+				const ref = subSchema.$ref
+				const typeValue = Object.entries(mapping).find(
+					([, value]) => value === ref
+				)?.[0]
+				if (typeValue) {
+					const subAst = openApiSchemaToZodAst(subSchema, refResolver, openapi)
+					if (subAst.type === "object") {
+						const extendedProperties = { ...subAst.properties }
+						extendedProperties[discriminatorProp] = {
+							type: "literal",
+							value: typeValue
+						}
+						const extendedRequired = subAst.required.includes(discriminatorProp)
+							? subAst.required
+							: [...subAst.required, discriminatorProp]
+						unionOptions.push({
+							type: "object",
+							properties: extendedProperties,
+							required: extendedRequired,
+							description: subAst.description
+						})
+					} else {
+						throw new Error("Subschema in oneOf must be an object")
+					}
+				}
+			}
+		}
+		return {
+			type: "discriminatedUnion",
+			discriminator: discriminatorProp,
+			options: unionOptions,
+			description: schema.description
+		}
 	}
 
 	if (schema.allOf) {
@@ -436,6 +495,16 @@ function generateZodCode(ast: ZodAST): string {
 			}
 			return code
 		}
+		case "discriminatedUnion": {
+			const optionsCode = ast.options
+				.map((option) => generateZodCode(option))
+				.join(", ")
+			let code = `z.discriminatedUnion(${JSON.stringify(ast.discriminator)}, [${optionsCode}])`
+			if (ast.description) {
+				code += `.describe(${JSON.stringify(ast.description)})`
+			}
+			return code
+		}
 	}
 }
 
@@ -449,12 +518,21 @@ function getSchemaVariable(ref: string): string {
 	return `${schemaName[0].toLowerCase()}${schemaName.slice(1)}Schema`
 }
 
-/** Collects all schema names used in the operation's request and response */
+/** Collects all schema names used in the operation's request and response, including dependencies */
 function collectUsedSchemas(
 	operation: OpenAPIOperation,
 	openapi: OpenAPISchema
 ): Set<string> {
-	const usedSchemas = new Set<string>()
+	const directRefs = new Set<string>()
+	const schemas = openapi.components?.schemas || {}
+
+	// Helper function to collect direct references from a schema
+	function collectDirectRefs(schema: OpenAPISchema) {
+		const refs = getReferencedSchemas(schema)
+		for (const ref of refs) {
+			directRefs.add(ref)
+		}
+	}
 
 	// Collect from request body
 	if (operation.requestBody) {
@@ -464,12 +542,7 @@ function collectUsedSchemas(
 		}
 		if (requestBody.content?.["application/json"]?.schema) {
 			const schema = requestBody.content["application/json"].schema
-			if (schema.$ref) {
-				const schemaName = getSchemaNameFromRef(schema.$ref)
-				if (schemaName) {
-					usedSchemas.add(schemaName)
-				}
-			}
+			collectDirectRefs(schema)
 		}
 	}
 
@@ -482,11 +555,24 @@ function collectUsedSchemas(
 			}
 			if (resp.content?.["application/json"]?.schema) {
 				const schema = resp.content["application/json"].schema
-				if (schema.$ref) {
-					const schemaName = getSchemaNameFromRef(schema.$ref)
-					if (schemaName) {
-						usedSchemas.add(schemaName)
-					}
+				collectDirectRefs(schema)
+			}
+		}
+	}
+
+	// Build the full set of used schemas including dependencies
+	const usedSchemas = new Set(directRefs)
+	const toProcess = Array.from(directRefs)
+
+	while (toProcess.length > 0) {
+		const schemaName = toProcess.pop()
+		if (schemaName && schemas[schemaName]) {
+			const schema = schemas[schemaName]
+			const refs = getReferencedSchemas(schema)
+			for (const ref of refs) {
+				if (!usedSchemas.has(ref)) {
+					usedSchemas.add(ref)
+					toProcess.push(ref)
 				}
 			}
 		}
@@ -592,7 +678,9 @@ function generateResponseSchemas(
 		branches.push(defaultBranch)
 	}
 
-	const responseSchemaCode = `export const responseSchema = z.union([${branches.join(", ")}]);`
+	const responseSchemaCode = `export const responseSchema = z.union([${branches.join(
+		", "
+	)}])`
 	return [responseSchemaCode]
 }
 
@@ -741,7 +829,7 @@ if (require.main === module) {
 	const args = process.argv.slice(2)
 	if (args.length !== 2) {
 		console.error(
-			"Usage: ts-node script.ts <input-openapi.json> <output-zod.ts>"
+			"Usage: ts-nodescript.ts <input-openapi.json> <output-zod.ts>"
 		)
 		process.exit(1)
 	}
