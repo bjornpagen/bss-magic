@@ -78,7 +78,7 @@ type OpenAPISchema = {
 				requestBody?: {
 					$ref?: string
 					content?: Record<string, { schema: OpenAPISchema }>
-					required?: boolean // Added to support optional requestBody
+					required?: boolean
 				}
 			}
 		}
@@ -352,12 +352,6 @@ function openApiSchemaToZodAst(
 			}
 	}
 
-	// For headers, coerce number and boolean types since headers are strings in HTTP
-	if (options.isHeader) {
-		if (ast.type === "number" || ast.type === "boolean") {
-			return { type: "coerce", schema: ast, description: ast.description }
-		}
-	}
 	return ast
 }
 
@@ -542,13 +536,17 @@ function getHeadersSchemaAst(
 		} else {
 			headerSchema = headerDef.schema || {}
 		}
-		const headerAst = openApiSchemaToZodAst(
-			headerSchema,
-			refResolver,
-			openapi,
-			{ isHeader: true }
-		)
-		properties[headerName] = headerAst
+		const headerAst = openApiSchemaToZodAst(headerSchema, refResolver, openapi)
+		// If the header is of type number or integer, coerce it
+		if (headerSchema.type === "number" || headerSchema.type === "integer") {
+			properties[headerName] = {
+				type: "coerce",
+				schema: headerAst,
+				description: headerAst.description
+			}
+		} else {
+			properties[headerName] = headerAst
+		}
 	}
 	return {
 		type: "object",
@@ -556,63 +554,6 @@ function getHeadersSchemaAst(
 		required: [], // Headers are optional unless specified
 		description: "Response headers"
 	}
-}
-
-/** Generates the response schemas for a specific operation */
-function generateResponseSchemas(
-	operation: {
-		responses?: Record<
-			string,
-			OpenAPISchema & {
-				content?: Record<string, { schema: OpenAPISchema }>
-				headers?: Record<
-					string,
-					{ $ref?: string; schema?: OpenAPISchema; required?: boolean }
-				>
-			}
-		>
-	},
-	openapi: OpenAPISchema
-): string[] {
-	const responses = operation.responses || {}
-
-	const branches: string[] = []
-	let defaultBranch: string | null = null
-
-	for (const [status, response] of Object.entries(responses)) {
-		const resolvedResponse = response.$ref
-			? resolveRef(openapi, response.$ref)
-			: response
-		const bodySchemaAst = getResponseSchema(
-			resolvedResponse,
-			openapi,
-			getSchemaVariable
-		)
-		const headersSchemaAst = getHeadersSchemaAst(
-			resolvedResponse,
-			openapi,
-			getSchemaVariable
-		)
-		const bodySchemaCode = generateZodCode(bodySchemaAst)
-		const headersSchemaCode = generateZodCode(headersSchemaAst)
-		if (status === "default") {
-			defaultBranch = `z.object({ status: z.number().min(100).max(599), headers: ${headersSchemaCode}, body: ${bodySchemaCode} })`
-		} else if (/^\d+$/.test(status)) {
-			const statusNumber = Number.parseInt(status, 10)
-			branches.push(
-				`z.object({ status: z.literal(${statusNumber}), headers: ${headersSchemaCode}, body: ${bodySchemaCode} })`
-			)
-		} else {
-			throw new Error(`Unsupported status code: ${status}`)
-		}
-	}
-
-	if (defaultBranch) {
-		branches.push(defaultBranch)
-	}
-
-	const responseSchemaCode = `export const responseSchema = z.union([${branches.join(", ")}])`
-	return [responseSchemaCode]
 }
 
 /** Generates the request schema for a specific operation */
@@ -746,23 +687,18 @@ function generateRequestSchema(
     body: ${bodyCode},
   })`
 
-	return `export const requestSchema = ${requestSchemaCode};`
+	return requestSchemaCode
 }
 
-/** Transforms an OpenAPI schema to Zod TypeScript code for a specific operation */
+/** Transforms an OpenAPI schema to Zod TypeScript code for all operations */
 function transformOpenApiToZod(openapi: OpenAPISchema): string {
-	const paths = openapi.paths
-	if (!paths || Object.keys(paths).length === 0) {
-		throw new Error("No paths found in OpenAPI schema")
-	}
-	const pathKey = Object.keys(paths)[0]
-	const pathOperations = paths[pathKey]
-	const method = Object.keys(pathOperations)[0]
-	const operation = pathOperations[method]
-
-	// Generate all schema definitions
-	const schemas = openapi.components?.schemas || {}
+	const paths = openapi.paths || {}
 	const schemaDefs: string[] = []
+	const requestDefs: string[] = []
+	const responseDefs: string[] = []
+
+	// Generate all schema definitions from components
+	const schemas = openapi.components?.schemas || {}
 	for (const [schemaName, schema] of Object.entries(schemas)) {
 		const variableName = getSchemaVariable(`#/components/schemas/${schemaName}`)
 		const ast = openApiSchemaToZodAst(schema, getSchemaVariable, openapi)
@@ -770,25 +706,65 @@ function transformOpenApiToZod(openapi: OpenAPISchema): string {
 		schemaDefs.push(`const ${variableName} = ${code};`)
 	}
 
-	// Generate response schemas
-	const responseDefs = generateResponseSchemas(operation, openapi)
+	// Iterate over each path and method
+	for (const [_pathKey, pathOperations] of Object.entries(paths)) {
+		for (const [method, operation] of Object.entries(pathOperations)) {
+			const _methodName = method.toUpperCase()
+			const requestVariable = `${method.toLowerCase()}RequestSchema`
+			const responseVariable = `${method.toLowerCase()}ResponseSchema`
 
-	// Generate request schema
-	const requestCode = generateRequestSchema(
-		method,
-		operation,
-		openapi,
-		getSchemaVariable
-	)
+			// Generate request schema
+			const requestCode = generateRequestSchema(
+				method,
+				operation,
+				openapi,
+				getSchemaVariable
+			)
+			requestDefs.push(`export const ${requestVariable} = ${requestCode};`)
+
+			// Generate response schemas
+			const responses = operation.responses || {}
+			const branches: string[] = []
+			for (const [status, response] of Object.entries(responses)) {
+				const resolvedResponse = response.$ref
+					? resolveRef(openapi, response.$ref)
+					: response
+				const bodySchemaAst = getResponseSchema(
+					resolvedResponse,
+					openapi,
+					getSchemaVariable
+				)
+				const headersSchemaAst = getHeadersSchemaAst(
+					resolvedResponse,
+					openapi,
+					getSchemaVariable
+				)
+				const bodySchemaCode = generateZodCode(bodySchemaAst)
+				const headersSchemaCode = generateZodCode(headersSchemaAst)
+				if (/^\d+$/.test(status)) {
+					const statusNumber = Number.parseInt(status, 10)
+					branches.push(
+						`z.object({ status: z.literal(${statusNumber}), headers: ${headersSchemaCode}, body: ${bodySchemaCode} })`
+					)
+				} else {
+					// Handle default or other status codes if necessary
+				}
+			}
+			const responseSchemaCode = `export const ${responseVariable} = z.union([${branches.join(
+				", "
+			)}])`
+			responseDefs.push(responseSchemaCode)
+		}
+	}
 
 	return `
 import { z } from "zod";
 
 ${schemaDefs.join("\n\n")}
 
-${responseDefs.join("\n\n")}
+${requestDefs.join("\n\n")}
 
-${requestCode}
+${responseDefs.join("\n\n")}
     `.trim()
 }
 
