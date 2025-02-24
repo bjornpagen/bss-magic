@@ -192,12 +192,15 @@ function openApiSchemaToZodAst(
 	}
 
 	if (schema.allOf) {
-		const schemas = schema.allOf.map((subSchema) => {
-			const resolvedSubSchema = subSchema.$ref
-				? resolveRef(openapi, subSchema.$ref)
-				: subSchema
-			return openApiSchemaToZodAst(resolvedSubSchema, refResolver, openapi)
-		})
+		const schemas: ZodAST[] = schema.allOf.map((subSchema) =>
+			subSchema.$ref
+				? {
+						type: "reference" as const,
+						ref: refResolver(subSchema.$ref),
+						description: subSchema.description
+					}
+				: openApiSchemaToZodAst(subSchema, refResolver, openapi)
+		)
 		return {
 			type: "merge",
 			schemas,
