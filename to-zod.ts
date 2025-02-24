@@ -82,7 +82,6 @@ type ZodAST =
 	| { type: "enum"; values: string[]; description?: string }
 	| { type: "reference"; ref: string; description?: string }
 	| { type: "literal"; value: string | number | boolean; description?: string }
-	| { type: "extend"; base: ZodAST; extension: ZodAST; description?: string }
 	| { type: "merge"; schemas: ZodAST[]; description?: string }
 	| { type: "undefined"; description?: string }
 
@@ -192,38 +191,24 @@ function openApiSchemaToZodAst(
 	}
 
 	if (schema.allOf) {
-		const mergedProperties: Record<string, ZodAST> = {}
-		const mergedRequired: Set<string> = new Set()
-		for (let subSchema of schema.allOf) {
+		const subschemaAsts: ZodAST[] = schema.allOf.map((subSchema) => {
 			if (subSchema.$ref) {
-				subSchema = resolveRef(openapi, subSchema.$ref)
-			}
-			const subAst = openApiSchemaToZodAst(subSchema, refResolver, openapi)
-			if (subAst.type !== "object") {
-				throw new Error("allOf subschemas must be object schemas")
-			}
-			for (const [propName, propAst] of Object.entries(subAst.properties)) {
-				if (mergedProperties[propName]) {
-					console.warn(
-						`Property ${propName} defined in multiple subschemas; using last definition`
-					)
+				const schemaName = getSchemaNameFromRef(subSchema.$ref)
+				if (schemaName) {
+					return {
+						type: "reference" as const,
+						ref: refResolver(subSchema.$ref),
+						description: subSchema.description
+					}
 				}
-				mergedProperties[propName] = propAst
+				const resolvedSchema = resolveRef(openapi, subSchema.$ref)
+				return openApiSchemaToZodAst(resolvedSchema, refResolver, openapi)
 			}
-			for (const req of subAst.required) {
-				mergedRequired.add(req)
-			}
-		}
-		// Apply parent's required properties
-		if (schema.required) {
-			for (const req of schema.required) {
-				mergedRequired.add(req)
-			}
-		}
+			return openApiSchemaToZodAst(subSchema, refResolver, openapi)
+		})
 		return {
-			type: "object",
-			properties: mergedProperties,
-			required: Array.from(mergedRequired),
+			type: "merge",
+			schemas: subschemaAsts,
 			description: schema.description
 		}
 	}
@@ -361,31 +346,6 @@ function generateZodCode(ast: ZodAST): string {
 			return ast.ref
 		case "literal": {
 			let code = `z.literal(${JSON.stringify(ast.value)})`
-			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
-			}
-			return code
-		}
-		case "extend": {
-			const baseCode = generateZodCode(ast.base)
-			if (ast.extension.type !== "object") {
-				throw new Error("Extension must be an object schema")
-			}
-			const ext = ast.extension as {
-				type: "object"
-				properties: Record<string, ZodAST>
-				required: string[]
-			}
-			const props = Object.entries(ext.properties).map(
-				([propName, propAst]) => {
-					let propCode = generateZodCode(propAst)
-					if (!ext.required.includes(propName)) {
-						propCode += ".optional()"
-					}
-					return `${JSON.stringify(propName)}: ${propCode}`
-				}
-			)
-			let code = `${baseCode}.extend({ ${props.join(", ")} })`
 			if (ast.description) {
 				code += `.describe(${JSON.stringify(ast.description)})`
 			}
