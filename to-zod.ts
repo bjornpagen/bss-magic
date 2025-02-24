@@ -192,18 +192,38 @@ function openApiSchemaToZodAst(
 	}
 
 	if (schema.allOf) {
-		const schemas: ZodAST[] = schema.allOf.map((subSchema) =>
-			subSchema.$ref
-				? {
-						type: "reference" as const,
-						ref: refResolver(subSchema.$ref),
-						description: subSchema.description
-					}
-				: openApiSchemaToZodAst(subSchema, refResolver, openapi)
-		)
+		const mergedProperties: Record<string, ZodAST> = {}
+		const mergedRequired: Set<string> = new Set()
+		for (let subSchema of schema.allOf) {
+			if (subSchema.$ref) {
+				subSchema = resolveRef(openapi, subSchema.$ref)
+			}
+			const subAst = openApiSchemaToZodAst(subSchema, refResolver, openapi)
+			if (subAst.type !== "object") {
+				throw new Error("allOf subschemas must be object schemas")
+			}
+			for (const [propName, propAst] of Object.entries(subAst.properties)) {
+				if (mergedProperties[propName]) {
+					console.warn(
+						`Property ${propName} defined in multiple subschemas; using last definition`
+					)
+				}
+				mergedProperties[propName] = propAst
+			}
+			for (const req of subAst.required) {
+				mergedRequired.add(req)
+			}
+		}
+		// Apply parent's required properties
+		if (schema.required) {
+			for (const req of schema.required) {
+				mergedRequired.add(req)
+			}
+		}
 		return {
-			type: "merge",
-			schemas,
+			type: "object",
+			properties: mergedProperties,
+			required: Array.from(mergedRequired),
 			description: schema.description
 		}
 	}
