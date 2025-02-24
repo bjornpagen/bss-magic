@@ -38,6 +38,7 @@ type OpenAPISchema = {
 					name: string
 					required?: boolean
 					schema: OpenAPISchema
+					description?: string // Added for parameter descriptions
 				}>
 				responses: Record<
 					string,
@@ -412,7 +413,8 @@ function generateResponseSchemas(
 		)
 		const responseSchemaCode = generateZodCode(responseSchemaAst)
 		if (status === "default") {
-			defaultBranch = `z.object({ status: z.number(), body: ${responseSchemaCode} })`
+			// Updated to constrain status codes to 100–599
+			defaultBranch = `z.object({ status: z.number().min(100).max(599), body: ${responseSchemaCode} })`
 		} else if (/^\d+$/.test(status)) {
 			const statusNumber = Number.parseInt(status, 10)
 			branches.push(
@@ -446,6 +448,7 @@ function generateRequestSchema(
 			name: string
 			required?: boolean
 			schema: OpenAPISchema
+			description?: string // Added for descriptions
 		}>
 		requestBody?: {
 			$ref?: string
@@ -461,6 +464,7 @@ function generateRequestSchema(
 		name: string
 		required?: boolean
 		schema: OpenAPISchema
+		description?: string // Added for descriptions
 	}
 
 	let params = operation.parameters || []
@@ -480,10 +484,12 @@ function generateRequestSchema(
 		if (!param.schema) {
 			throw new Error(`Parameter ${param.name} has no schema`)
 		}
-		pathSchemaAst.properties[param.name] = openApiSchemaToZodAst(
-			param.schema,
-			refResolver
-		)
+		const paramAst = openApiSchemaToZodAst(param.schema, refResolver)
+		// Add description if present
+		if (param.description) {
+			paramAst.description = param.description
+		}
+		pathSchemaAst.properties[param.name] = paramAst
 		if (param.required) {
 			pathSchemaAst.required.push(param.name)
 		}
@@ -498,10 +504,12 @@ function generateRequestSchema(
 		if (!param.schema) {
 			throw new Error(`Parameter ${param.name} has no schema`)
 		}
-		querySchemaAst.properties[param.name] = openApiSchemaToZodAst(
-			param.schema,
-			refResolver
-		)
+		const paramAst = openApiSchemaToZodAst(param.schema, refResolver)
+		// Add description if present
+		if (param.description) {
+			paramAst.description = param.description
+		}
+		querySchemaAst.properties[param.name] = paramAst
 		if (param.required) {
 			querySchemaAst.required.push(param.name)
 		}
