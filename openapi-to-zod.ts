@@ -806,18 +806,28 @@ function transformOpenApiToZod(openapi: OpenAPISchema): string {
 				)
 				const bodySchemaCode = generateZodCode(bodySchemaAst)
 				const headersSchemaCode = generateZodCode(headersSchemaAst)
-				if (/^\d+$/.test(status)) {
+				if (status === "default") {
+					branches.push(
+						`z.object({ status: z.number(), headers: ${headersSchemaCode}, body: ${bodySchemaCode} })`
+					)
+				} else if (/^\d+$/.test(status)) {
 					const statusNumber = Number.parseInt(status, 10)
 					branches.push(
 						`z.object({ status: z.literal(${statusNumber}), headers: ${headersSchemaCode}, body: ${bodySchemaCode} })`
 					)
-				} else {
-					// Handle default or other status codes if necessary
 				}
 			}
-			const responseSchemaCode = `export const ${responseVariable} = z.union([${branches.join(
-				", "
-			)}]);`
+
+			// Determine how to construct the response schema based on the number of branches
+			let responseSchemaCode: string
+			if (branches.length === 0) {
+				throw new Error("No responses defined for operation")
+			}
+			if (branches.length === 1) {
+				responseSchemaCode = `export const ${responseVariable} = ${branches[0]};`
+			} else {
+				responseSchemaCode = `export const ${responseVariable} = z.union([${branches.join(", ")}]);`
+			}
 			responseDefs.push(responseSchemaCode)
 		}
 	}
