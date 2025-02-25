@@ -111,7 +111,8 @@ type ZodAST =
 	  }
 	| { type: "coerce"; schema: ZodAST; description?: string }
 	| { type: "datetime"; description?: string }
-	| { type: "any"; description?: string } // Added "any" type
+	| { type: "any"; description?: string }
+	| { type: "union"; options: ZodAST[]; description?: string } // Added "union" type
 
 // ### Utility Functions
 
@@ -473,8 +474,17 @@ function generateZodCode(ast: ZodAST): string {
 			return code
 		}
 		case "any": {
-			// Added case for "any"
 			let code = "z.any()"
+			if (ast.description) {
+				code += `.describe(${JSON.stringify(ast.description)})`
+			}
+			return code
+		}
+		case "union": {
+			const optionsCode = ast.options
+				.map((option) => generateZodCode(option))
+				.join(", ")
+			let code = `z.union([${optionsCode}])`
 			if (ast.description) {
 				code += `.describe(${JSON.stringify(ast.description)})`
 			}
@@ -505,12 +515,23 @@ function getResponseSchema(
 		const resolvedResponse = resolveRef(openapi, response.$ref)
 		return getResponseSchema(resolvedResponse, openapi, refResolver)
 	}
-	if (response.content?.["application/json"]?.schema) {
-		return openApiSchemaToZodAst(
-			response.content["application/json"].schema,
-			refResolver,
-			openapi
-		)
+	if (response.content) {
+		const bodyAsts: ZodAST[] = []
+		for (const [_, mediaType] of Object.entries(response.content)) {
+			if (mediaType.schema) {
+				const schemaAst = openApiSchemaToZodAst(
+					mediaType.schema,
+					refResolver,
+					openapi
+				)
+				bodyAsts.push(schemaAst)
+			}
+		}
+		if (bodyAsts.length > 0) {
+			return bodyAsts.length > 1
+				? { type: "union", options: bodyAsts }
+				: bodyAsts[0]
+		}
 	}
 	return { type: "undefined" }
 }
@@ -664,7 +685,7 @@ function generateRequestSchema(
 		}
 	}
 
-	let bodyAst: ZodAST = { type: "undefined" }
+	let bodyAst: ZodAST
 	let isBodyRequired = false
 	if (operation.requestBody) {
 		let requestBody: {
@@ -680,14 +701,32 @@ function generateRequestSchema(
 				required?: boolean
 			}
 		}
-		if (requestBody.content?.["application/json"]?.schema) {
-			bodyAst = openApiSchemaToZodAst(
-				requestBody.content["application/json"].schema,
-				refResolver,
-				openapi
-			)
-			isBodyRequired = requestBody.required ?? false
+		if (requestBody.content) {
+			const bodyAsts: ZodAST[] = []
+			for (const [_, mediaType] of Object.entries(requestBody.content)) {
+				if (mediaType.schema) {
+					const schemaAst = openApiSchemaToZodAst(
+						mediaType.schema,
+						refResolver,
+						openapi
+					)
+					bodyAsts.push(schemaAst)
+				}
+			}
+			if (bodyAsts.length > 0) {
+				bodyAst =
+					bodyAsts.length > 1
+						? { type: "union", options: bodyAsts }
+						: bodyAsts[0]
+			} else {
+				bodyAst = { type: "undefined" }
+			}
+		} else {
+			bodyAst = { type: "undefined" }
 		}
+		isBodyRequired = requestBody.required ?? false
+	} else {
+		bodyAst = { type: "undefined" }
 	}
 
 	// Generate Zod code for path, query, and body with coercion to empty object
@@ -778,7 +817,7 @@ function transformOpenApiToZod(openapi: OpenAPISchema): string {
 			}
 			const responseSchemaCode = `export const ${responseVariable} = z.union([${branches.join(
 				", "
-			)}])`
+			)}]);`
 			responseDefs.push(responseSchemaCode)
 		}
 	}
