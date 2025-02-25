@@ -50,25 +50,28 @@
     }
   ],
   "paths": {
-    "/billingAccount/{id}": {
+    "/partyAccount": {
       "get": {
         "tags": [
-          "billingAccount"
+          "partyAccount"
         ],
-        "summary": "Retrieves a BillingAccount by ID",
-        "description": "This operation retrieves a BillingAccount entity. Attribute selection enabled for all first level attributes.",
-        "operationId": "retrieveBillingAccount",
+        "summary": "List or find PartyAccount objects",
+        "description": "List or find PartyAccount objects",
+        "operationId": "listPartyAccount",
         "parameters": [
           {
-            "$ref": "#/components/parameters/Id"
+            "$ref": "#/components/parameters/Fields"
           },
           {
-            "$ref": "#/components/parameters/Fields"
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
           }
         ],
         "responses": {
           "200": {
-            "$ref": "#/components/responses/200BillingAccount_Get"
+            "$ref": "#/components/responses/200PartyAccountArray"
           },
           "400": {
             "$ref": "#/components/responses/400"
@@ -96,78 +99,27 @@
           }
         }
       },
-      "patch": {
+      "post": {
         "tags": [
-          "billingAccount"
+          "partyAccount"
         ],
-        "summary": "Updates partially a BillingAccount",
-        "description": "This operation updates partially a BillingAccount entity.",
-        "operationId": "patchBillingAccount",
+        "summary": "Creates a PartyAccount",
+        "description": "This operation creates a PartyAccount entity.",
+        "operationId": "createPartyAccount",
         "parameters": [
-          {
-            "$ref": "#/components/parameters/Id"
-          },
           {
             "$ref": "#/components/parameters/Fields"
           }
         ],
         "requestBody": {
-          "$ref": "#/components/requestBodies/BillingAccount_MVO"
+          "$ref": "#/components/requestBodies/PartyAccount_FVO"
         },
         "responses": {
-          "200": {
-            "$ref": "#/components/responses/200BillingAccount_Patch"
+          "201": {
+            "$ref": "#/components/responses/201PartyAccount"
           },
           "202": {
             "description": "Accepted"
-          },
-          "400": {
-            "$ref": "#/components/responses/400"
-          },
-          "401": {
-            "$ref": "#/components/responses/401"
-          },
-          "403": {
-            "$ref": "#/components/responses/403"
-          },
-          "404": {
-            "$ref": "#/components/responses/404"
-          },
-          "405": {
-            "$ref": "#/components/responses/405"
-          },
-          "409": {
-            "$ref": "#/components/responses/409"
-          },
-          "500": {
-            "$ref": "#/components/responses/500"
-          },
-          "501": {
-            "$ref": "#/components/responses/501"
-          },
-          "503": {
-            "$ref": "#/components/responses/503"
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "billingAccount"
-        ],
-        "summary": "Deletes a BillingAccount",
-        "description": "This operation deletes a BillingAccount entity.",
-        "operationId": "deleteBillingAccount",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/Id"
-          }
-        ],
-        "responses": {
-          "202": {
-            "$ref": "#/components/responses/202"
-          },
-          "204": {
-            "$ref": "#/components/responses/204"
           },
           "400": {
             "$ref": "#/components/responses/400"
@@ -202,15 +154,6 @@
   },
   "components": {
     "parameters": {
-      "Id": {
-        "name": "id",
-        "required": true,
-        "schema": {
-          "type": "string"
-        },
-        "in": "path",
-        "description": "Identifier of the Resource"
-      },
       "Fields": {
         "name": "fields",
         "in": "query",
@@ -218,15 +161,25 @@
         "schema": {
           "type": "string"
         }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "description": "Requested index for start of resources to be provided in response",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "description": "Requested number of resources to be provided in response",
+        "schema": {
+          "type": "integer"
+        }
       }
     },
     "responses": {
-      "202": {
-        "description": "Accepted"
-      },
-      "204": {
-        "description": "Deleted"
-      },
       "400": {
         "description": "Bad Request",
         "content": {
@@ -317,89 +270,42 @@
           }
         }
       },
-      "200BillingAccount_Get": {
+      "200PartyAccountArray": {
         "description": "Success",
+        "headers": {
+          "X-Total-Count": {
+            "$ref": "#/components/headers/X-Total-Count"
+          },
+          "X-Result-Count": {
+            "$ref": "#/components/headers/X-Result-Count"
+          }
+        },
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/BillingAccount"
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/PartyAccount"
+              }
             },
             "examples": {
-              "BillingAccount_retrieve_example": {
-                "$ref": "#/components/examples/BillingAccount_retrieve_example_response"
+              "PartyAccount_list_example": {
+                "$ref": "#/components/examples/PartyAccount_list_example_response"
               }
             }
           }
         }
       },
-      "200BillingAccount_Patch": {
-        "description": "Success",
+      "201PartyAccount": {
+        "description": "OK/Created",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/BillingAccount"
+              "$ref": "#/components/schemas/PartyAccount"
             },
             "examples": {
-              "BillingAccount_Update_example_Implied_Merge": {
-                "$ref": "#/components/examples/BillingAccount_Update_example_Implied_Merge_response"
-              }
-            }
-          },
-          "application/merge-patch+json": {
-            "schema": {
-              "$ref": "#/components/schemas/BillingAccount"
-            },
-            "examples": {
-              "BillingAccount_Update_example_Patch_Merge": {
-                "$ref": "#/components/examples/BillingAccount_Update_example_Patch_Merge_response"
-              }
-            }
-          },
-          "application/json-patch+json": {
-            "schema": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/BillingAccount"
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/BillingAccount"
-                  }
-                },
-                {
-                  "type": "string",
-                  "nullable": true
-                }
-              ]
-            },
-            "examples": {
-              "BillingAccount_Update_example_JSON_Patch": {
-                "$ref": "#/components/examples/BillingAccount_Update_example_JSON_Patch_response"
-              }
-            }
-          },
-          "application/json-patch-query+json": {
-            "schema": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/BillingAccount"
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/BillingAccount"
-                  }
-                },
-                {
-                  "type": "string",
-                  "nullable": true
-                }
-              ]
-            },
-            "examples": {
-              "BillingAccount_Update_example_JSON_Patch": {
-                "$ref": "#/components/examples/BillingAccount_Update_example_JSON_Patch_response"
+              "PartyAccount_create_example": {
+                "$ref": "#/components/examples/PartyAccount_create_example_response"
               }
             }
           }
@@ -407,46 +313,16 @@
       }
     },
     "requestBodies": {
-      "BillingAccount_MVO": {
-        "description": "The BillingAccount to be patched",
+      "PartyAccount_FVO": {
+        "description": "The PartyAccount to be created",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/BillingAccount_MVO"
+              "$ref": "#/components/schemas/PartyAccount_FVO"
             },
             "examples": {
-              "BillingAccount_Update_example_Implied_Merge": {
-                "$ref": "#/components/examples/BillingAccount_Update_example_Implied_Merge_request"
-              }
-            }
-          },
-          "application/merge-patch+json": {
-            "schema": {
-              "$ref": "#/components/schemas/BillingAccount_MVO"
-            },
-            "examples": {
-              "BillingAccount_Update_example_Patch_Merge": {
-                "$ref": "#/components/examples/BillingAccount_Update_example_Patch_Merge_request"
-              }
-            }
-          },
-          "application/json-patch+json": {
-            "schema": {
-              "$ref": "#/components/schemas/JsonPatchOperations"
-            },
-            "examples": {
-              "BillingAccount_Update_example_JSON_Patch": {
-                "$ref": "#/components/examples/BillingAccount_Update_example_JSON_Patch_request"
-              }
-            }
-          },
-          "application/json-patch-query+json": {
-            "schema": {
-              "$ref": "#/components/schemas/JsonPatchOperations"
-            },
-            "examples": {
-              "BillingAccount_Update_example_JSON_Patch": {
-                "$ref": "#/components/examples/BillingAccount_Update_example_JSON_Patch_request"
+              "PartyAccount_create_example": {
+                "$ref": "#/components/examples/PartyAccount_create_example_request"
               }
             }
           }
@@ -454,19 +330,49 @@
         "required": true
       }
     },
+    "headers": {
+      "X-Total-Count": {
+        "description": "Total number of items matching criteria",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "X-Result-Count": {
+        "description": "Actual number of items returned in the response body",
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
     "schemas": {
-      "BillingAccount": {
+      "PartyAccount": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/PartyAccount"
+            "$ref": "#/components/schemas/Account"
           },
           {
             "type": "object",
-            "description": "A party account used for billing purposes. It includes a description of the bill structure (frequency, presentation media, format and so on). It is a specialization of entity PartyAccount.",
+            "description": "Account used for billing or for settlement purposes concerning a given party (an organization or an individual). It is a specialization of entity Account.",
             "properties": {
-              "ratingType": {
+              "paymentStatus": {
                 "type": "string",
-                "description": "Indicates whether the account follows a specific payment option such as prepaid or postpaid"
+                "description": "The condition of the account, such as due, paid, in arrears."
+              },
+              "billStructure": {
+                "$ref": "#/components/schemas/BillStructure"
+              },
+              "paymentPlan": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PaymentPlan"
+                },
+                "description": "A list of payment plans that are active or expired for the account, for example if the customer had difficulty in paying"
+              },
+              "financialAccount": {
+                "$ref": "#/components/schemas/FinancialAccountRef"
+              },
+              "defaultPaymentMethod": {
+                "$ref": "#/components/schemas/PaymentMethodRef"
               }
             }
           }
@@ -515,34 +421,10 @@
         ],
         "description": "Used when an API throws an Error, typically with a HTTP error response-code (3xx, 4xx, 5xx)"
       },
-      "BillingAccount_MVO": {
+      "PartyAccount_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/PartyAccount_MVO"
-          },
-          {
-            "type": "object",
-            "description": "A party account used for billing purposes. It includes a description of the bill structure (frequency, presentation media, format and so on). It is a specialization of entity PartyAccount.",
-            "properties": {
-              "ratingType": {
-                "type": "string",
-                "description": "Indicates whether the account follows a specific payment option such as prepaid or postpaid"
-              }
-            }
-          }
-        ]
-      },
-      "JsonPatchOperations": {
-        "description": "JSONPatch Operations document as defined by RFC 6902",
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/JsonPatch"
-        }
-      },
-      "PartyAccount": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Account"
+            "$ref": "#/components/schemas/Account_FVO"
           },
           {
             "type": "object",
@@ -553,111 +435,28 @@
                 "description": "The condition of the account, such as due, paid, in arrears."
               },
               "billStructure": {
-                "$ref": "#/components/schemas/BillStructure"
+                "$ref": "#/components/schemas/BillStructure_FVO"
               },
               "paymentPlan": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/PaymentPlan"
+                  "$ref": "#/components/schemas/PaymentPlan_FVO"
                 },
                 "description": "A list of payment plans that are active or expired for the account, for example if the customer had difficulty in paying"
               },
               "financialAccount": {
-                "$ref": "#/components/schemas/FinancialAccountRef"
+                "$ref": "#/components/schemas/FinancialAccountRef_FVO"
               },
               "defaultPaymentMethod": {
-                "$ref": "#/components/schemas/PaymentMethodRef"
+                "$ref": "#/components/schemas/PaymentMethodRef_FVO"
               }
-            }
-          }
-        ]
-      },
-      "Extensible": {
-        "type": "object",
-        "description": "Base Extensible schema for use in TMForum Open-APIs - When used for in a schema it means that the Entity described by the schema  MUST be extended with the @type",
-        "properties": {
-          "@type": {
-            "type": "string",
-            "description": "When sub-classing, this defines the sub-class Extensible name"
-          },
-          "@baseType": {
-            "type": "string",
-            "description": "When sub-classing, this defines the super-class"
-          },
-          "@schemaLocation": {
-            "type": "string",
-            "description": "A URI to a JSON-Schema file that defines additional attributes and relationships"
-          }
-        },
-        "required": [
-          "@type"
-        ]
-      },
-      "PartyAccount_MVO": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Account_MVO"
-          },
-          {
-            "type": "object",
-            "description": "Account used for billing or for settlement purposes concerning a given party (an organization or an individual). It is a specialization of entity Account.",
-            "properties": {
-              "paymentStatus": {
-                "type": "string",
-                "description": "The condition of the account, such as due, paid, in arrears."
-              },
-              "billStructure": {
-                "$ref": "#/components/schemas/BillStructure_MVO"
-              },
-              "paymentPlan": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/PaymentPlan_MVO"
-                },
-                "description": "A list of payment plans that are active or expired for the account, for example if the customer had difficulty in paying"
-              },
-              "financialAccount": {
-                "$ref": "#/components/schemas/FinancialAccountRef_MVO"
-              },
-              "defaultPaymentMethod": {
-                "$ref": "#/components/schemas/PaymentMethodRef_MVO"
-              }
-            }
-          }
-        ]
-      },
-      "JsonPatch": {
-        "type": "object",
-        "description": "A JSONPatch document as defined by RFC 6902",
-        "required": [
-          "op",
-          "path"
-        ],
-        "properties": {
-          "op": {
-            "type": "string",
-            "description": "The operation to be performed",
-            "enum": [
-              "add",
-              "remove",
-              "replace",
-              "move",
-              "copy",
-              "test"
+            },
+            "required": [
+              "name",
+              "relatedParty"
             ]
-          },
-          "path": {
-            "type": "string",
-            "description": "A JSON-Pointer"
-          },
-          "value": {
-            "description": "The value to be used within the operations."
-          },
-          "from": {
-            "type": "string",
-            "description": "A string containing a JSON Pointer value."
           }
-        }
+        ]
       },
       "Account": {
         "allOf": [
@@ -854,10 +653,31 @@
           }
         }
       },
-      "Account_MVO": {
+      "Extensible": {
+        "type": "object",
+        "description": "Base Extensible schema for use in TMForum Open-APIs - When used for in a schema it means that the Entity described by the schema  MUST be extended with the @type",
+        "properties": {
+          "@type": {
+            "type": "string",
+            "description": "When sub-classing, this defines the sub-class Extensible name"
+          },
+          "@baseType": {
+            "type": "string",
+            "description": "When sub-classing, this defines the super-class"
+          },
+          "@schemaLocation": {
+            "type": "string",
+            "description": "A URI to a JSON-Schema file that defines additional attributes and relationships"
+          }
+        },
+        "required": [
+          "@type"
+        ]
+      },
+      "Account_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Entity_MVO"
+            "$ref": "#/components/schemas/Entity_FVO"
           },
           {
             "type": "object",
@@ -890,56 +710,59 @@
               "relatedParty": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/RelatedPartyRefOrPartyRoleRef_MVO"
+                  "$ref": "#/components/schemas/RelatedPartyRefOrPartyRoleRef_FVO"
                 },
                 "description": "List of parties that have some relationship with the account, for example the customer to whom the account belongs"
               },
               "taxExemption": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/TaxExemptionCertificate_MVO"
+                  "$ref": "#/components/schemas/TaxExemptionCertificate_FVO"
                 },
                 "description": "List of tax exemptions that can be applied when calculating charges levied to the account."
               },
               "contact": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Contact_MVO"
+                  "$ref": "#/components/schemas/Contact_FVO"
                 },
                 "description": "List of people who could be contacted regarding the account, for example the accountant who authorizes payments"
               },
               "accountBalance": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/AccountBalance_MVO"
+                  "$ref": "#/components/schemas/AccountBalance_FVO"
                 },
                 "description": "List of balances for the account, for example regular postpaid balance, deposit balance, write-off balance."
               },
               "accountRelationship": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/AccountRelationship_MVO"
+                  "$ref": "#/components/schemas/AccountRelationship_FVO"
                 },
                 "description": "List of balances related to the account. For example a list of billing accounts that contribute to a financial account"
               }
-            }
+            },
+            "required": [
+              "name"
+            ]
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "Account": "#/components/schemas/Account_MVO",
-            "PartyAccount": "#/components/schemas/PartyAccount_MVO",
-            "SettlementAccount": "#/components/schemas/SettlementAccount_MVO",
-            "BillingAccount": "#/components/schemas/BillingAccount_MVO",
-            "FinancialAccount": "#/components/schemas/FinancialAccount_MVO"
+            "Account": "#/components/schemas/Account_FVO",
+            "PartyAccount": "#/components/schemas/PartyAccount_FVO",
+            "SettlementAccount": "#/components/schemas/SettlementAccount_FVO",
+            "BillingAccount": "#/components/schemas/BillingAccount_FVO",
+            "FinancialAccount": "#/components/schemas/FinancialAccount_FVO"
           }
         }
       },
-      "BillStructure_MVO": {
+      "BillStructure_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Extensible"
+            "$ref": "#/components/schemas/Extensible_FVO"
           },
           {
             "type": "object",
@@ -948,14 +771,14 @@
               "presentationMedia": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/BillPresentationMediaRefOrValue_MVO"
+                  "$ref": "#/components/schemas/BillPresentationMediaRefOrValue_FVO"
                 }
               },
               "format": {
-                "$ref": "#/components/schemas/BillFormatRefOrValue_MVO"
+                "$ref": "#/components/schemas/BillFormatRefOrValue_FVO"
               },
               "cycleSpecification": {
-                "$ref": "#/components/schemas/BillingCycleSpecificationRefOrValue_MVO"
+                "$ref": "#/components/schemas/BillingCycleSpecificationRefOrValue_FVO"
               }
             }
           }
@@ -963,14 +786,14 @@
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillStructure": "#/components/schemas/BillStructure_MVO"
+            "BillStructure": "#/components/schemas/BillStructure_FVO"
           }
         }
       },
-      "PaymentPlan_MVO": {
+      "PaymentPlan_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Extensible"
+            "$ref": "#/components/schemas/Extensible_FVO"
           },
           {
             "type": "object",
@@ -1007,7 +830,7 @@
                 "$ref": "#/components/schemas/TimePeriod"
               },
               "paymentMethod": {
-                "$ref": "#/components/schemas/PaymentMethodRef_MVO"
+                "$ref": "#/components/schemas/PaymentMethodRef_FVO"
               }
             }
           }
@@ -1015,37 +838,37 @@
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "PaymentPlan": "#/components/schemas/PaymentPlan_MVO"
+            "PaymentPlan": "#/components/schemas/PaymentPlan_FVO"
           }
         }
       },
-      "FinancialAccountRef_MVO": {
+      "FinancialAccountRef_FVO": {
         "type": "object",
         "description": "AccountReceivable reference. An account of money owed by a party to another entity in exchange for goods or services that have been delivered or used. An account receivable aggregates the amounts of one or more party accounts (billing or settlement) owned by a given party.",
         "allOf": [
           {
-            "$ref": "#/components/schemas/EntityRef"
+            "$ref": "#/components/schemas/EntityRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "FinancialAccountRef": "#/components/schemas/FinancialAccountRef_MVO"
+            "FinancialAccountRef": "#/components/schemas/FinancialAccountRef_FVO"
           }
         }
       },
-      "PaymentMethodRef_MVO": {
+      "PaymentMethodRef_FVO": {
         "type": "object",
         "description": "PaymentMethod reference. A payment method defines a specific mean of payment (e.g direct debit).",
         "allOf": [
           {
-            "$ref": "#/components/schemas/EntityRef"
+            "$ref": "#/components/schemas/EntityRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "PaymentMethodRef": "#/components/schemas/PaymentMethodRef_MVO"
+            "PaymentMethodRef": "#/components/schemas/PaymentMethodRef_FVO"
           }
         }
       },
@@ -1371,19 +1194,22 @@
           }
         ]
       },
-      "Entity_MVO": {
+      "Entity_FVO": {
         "type": "object",
         "description": "Base entity schema for use in TMForum Open-APIs. Property.",
         "allOf": [
           {
-            "$ref": "#/components/schemas/Extensible"
+            "$ref": "#/components/schemas/Extensible_FVO"
+          },
+          {
+            "$ref": "#/components/schemas/Addressable_FVO"
           }
         ]
       },
-      "RelatedPartyRefOrPartyRoleRef_MVO": {
+      "RelatedPartyRefOrPartyRoleRef_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Extensible"
+            "$ref": "#/components/schemas/Extensible_FVO"
           },
           {
             "type": "object",
@@ -1394,22 +1220,25 @@
                 "type": "string"
               },
               "partyOrPartyRole": {
-                "$ref": "#/components/schemas/PartyRefOrPartyRoleRef_MVO"
+                "$ref": "#/components/schemas/PartyRefOrPartyRoleRef_FVO"
               }
-            }
+            },
+            "required": [
+              "role"
+            ]
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "RelatedPartyRefOrPartyRoleRef": "#/components/schemas/RelatedPartyRefOrPartyRoleRef_MVO"
+            "RelatedPartyRefOrPartyRoleRef": "#/components/schemas/RelatedPartyRefOrPartyRoleRef_FVO"
           }
         }
       },
-      "TaxExemptionCertificate_MVO": {
+      "TaxExemptionCertificate_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Extensible"
+            "$ref": "#/components/schemas/Extensible_FVO"
           },
           {
             "type": "object",
@@ -1422,7 +1251,7 @@
               "taxDefinition": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/TaxDefinition_MVO"
+                  "$ref": "#/components/schemas/TaxDefinition_FVO"
                 },
                 "description": "A list of taxes that are covered by the exemption, e.g. City Tax, State Tax. The definition would include the exemption (e.g. for a rate exemption 0% would be a full exemption, 5% could be a partial exemption if the actual rate was 10%)."
               },
@@ -1443,7 +1272,7 @@
                 "description": "Reason for the tax exemption"
               },
               "attachment": {
-                "$ref": "#/components/schemas/AttachmentRefOrValue_MVO"
+                "$ref": "#/components/schemas/AttachmentRefOrValue_FVO"
               }
             }
           }
@@ -1451,14 +1280,14 @@
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "TaxExemptionCertificate": "#/components/schemas/TaxExemptionCertificate_MVO"
+            "TaxExemptionCertificate": "#/components/schemas/TaxExemptionCertificate_FVO"
           }
         }
       },
-      "Contact_MVO": {
+      "Contact_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Extensible"
+            "$ref": "#/components/schemas/Extensible_FVO"
           },
           {
             "type": "object",
@@ -1486,27 +1315,30 @@
               "contactMedium": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/ContactMedium_MVO"
+                  "$ref": "#/components/schemas/ContactMedium_FVO"
                 },
                 "description": "List of contact mediums for the contact, such as mobile phone number, email addreess, etc."
               },
               "relatedParty": {
-                "$ref": "#/components/schemas/RelatedPartyRefOrPartyRoleRef_MVO"
+                "$ref": "#/components/schemas/RelatedPartyRefOrPartyRoleRef_FVO"
               }
-            }
+            },
+            "required": [
+              "contactType"
+            ]
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "Contact": "#/components/schemas/Contact_MVO"
+            "Contact": "#/components/schemas/Contact_FVO"
           }
         }
       },
-      "AccountBalance_MVO": {
+      "AccountBalance_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Extensible"
+            "$ref": "#/components/schemas/Extensible_FVO"
           },
           {
             "type": "object",
@@ -1526,20 +1358,25 @@
               "validFor": {
                 "$ref": "#/components/schemas/TimePeriod"
               }
-            }
+            },
+            "required": [
+              "amount",
+              "balanceType",
+              "validFor"
+            ]
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "AccountBalance": "#/components/schemas/AccountBalance_MVO"
+            "AccountBalance": "#/components/schemas/AccountBalance_FVO"
           }
         }
       },
-      "AccountRelationship_MVO": {
+      "AccountRelationship_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Entity_MVO"
+            "$ref": "#/components/schemas/Entity_FVO"
           },
           {
             "type": "object",
@@ -1553,74 +1390,133 @@
                 "$ref": "#/components/schemas/TimePeriod"
               },
               "account": {
-                "$ref": "#/components/schemas/AccountRef_MVO"
+                "$ref": "#/components/schemas/AccountRef_FVO"
               }
-            }
+            },
+            "required": [
+              "relationshipType"
+            ]
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "AccountRelationship": "#/components/schemas/AccountRelationship_MVO"
+            "AccountRelationship": "#/components/schemas/AccountRelationship_FVO"
           }
         }
       },
-      "BillPresentationMediaRefOrValue_MVO": {
+      "Extensible_FVO": {
+        "type": "object",
+        "description": "Base Extensible schema for use in TMForum Open-APIs - When used for in a schema it means that the Entity described by the schema  MUST be extended with the @type",
+        "properties": {
+          "@type": {
+            "type": "string",
+            "description": "When sub-classing, this defines the sub-class Extensible name"
+          },
+          "@baseType": {
+            "type": "string",
+            "description": "When sub-classing, this defines the super-class"
+          },
+          "@schemaLocation": {
+            "type": "string",
+            "description": "A URI to a JSON-Schema file that defines additional attributes and relationships"
+          }
+        },
+        "required": [
+          "@type"
+        ]
+      },
+      "BillPresentationMediaRefOrValue_FVO": {
         "type": "object",
         "description": "The polymorphic attributes @type, @schemaLocation & @referredType are related to the BillPresentationMedia entity and not the BillPresentationMediaRefOrValue class itself",
         "oneOf": [
           {
-            "$ref": "#/components/schemas/BillPresentationMedia_MVO"
+            "$ref": "#/components/schemas/BillPresentationMedia_FVO"
           },
           {
-            "$ref": "#/components/schemas/BillPresentationMediaRef_MVO"
+            "$ref": "#/components/schemas/BillPresentationMediaRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillPresentationMedia": "#/components/schemas/BillPresentationMedia_MVO",
-            "BillPresentationMediaRef": "#/components/schemas/BillPresentationMediaRef_MVO"
+            "BillPresentationMedia": "#/components/schemas/BillPresentationMedia_FVO",
+            "BillPresentationMediaRef": "#/components/schemas/BillPresentationMediaRef_FVO"
           }
         }
       },
-      "BillFormatRefOrValue_MVO": {
+      "BillFormatRefOrValue_FVO": {
         "type": "object",
         "description": "The polymorphic attributes @type, @schemaLocation & @referredType are related to the BillFormat entity and not the BillFormatRefOrValue class itself",
         "oneOf": [
           {
-            "$ref": "#/components/schemas/BillFormat_MVO"
+            "$ref": "#/components/schemas/BillFormat_FVO"
           },
           {
-            "$ref": "#/components/schemas/BillFormatRef_MVO"
+            "$ref": "#/components/schemas/BillFormatRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillFormat": "#/components/schemas/BillFormat_MVO",
-            "BillFormatRef": "#/components/schemas/BillFormatRef_MVO"
+            "BillFormat": "#/components/schemas/BillFormat_FVO",
+            "BillFormatRef": "#/components/schemas/BillFormatRef_FVO"
           }
         }
       },
-      "BillingCycleSpecificationRefOrValue_MVO": {
+      "BillingCycleSpecificationRefOrValue_FVO": {
         "type": "object",
         "description": "The polymorphic attributes @type, @schemaLocation & @referredType are related to the BillingCycleSpecification entity and not the BillingCycleSpecificationRefOrValue class itself",
         "oneOf": [
           {
-            "$ref": "#/components/schemas/BillingCycleSpecification_MVO"
+            "$ref": "#/components/schemas/BillingCycleSpecification_FVO"
           },
           {
-            "$ref": "#/components/schemas/BillingCycleSpecificationRef_MVO"
+            "$ref": "#/components/schemas/BillingCycleSpecificationRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillingCycleSpecification": "#/components/schemas/BillingCycleSpecification_MVO",
-            "BillingCycleSpecificationRef": "#/components/schemas/BillingCycleSpecificationRef_MVO"
+            "BillingCycleSpecification": "#/components/schemas/BillingCycleSpecification_FVO",
+            "BillingCycleSpecificationRef": "#/components/schemas/BillingCycleSpecificationRef_FVO"
           }
         }
+      },
+      "EntityRef_FVO": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Extensible_FVO"
+          },
+          {
+            "$ref": "#/components/schemas/Addressable_FVO"
+          },
+          {
+            "type": "object",
+            "description": "Entity reference schema to be use for all entityRef class.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "The identifier of the referred entity."
+              },
+              "href": {
+                "type": "string",
+                "description": "The URI of the referred entity."
+              },
+              "name": {
+                "type": "string",
+                "description": "Name of the referred entity."
+              },
+              "@referredType": {
+                "type": "string",
+                "description": "The actual type of the target instance when needed for disambiguation."
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        ]
       },
       "Addressable": {
         "type": "object",
@@ -1930,29 +1826,39 @@
           }
         }
       },
-      "PartyRefOrPartyRoleRef_MVO": {
+      "Addressable_FVO": {
+        "type": "object",
+        "description": "Base schema for adressable entities",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "unique identifier"
+          }
+        }
+      },
+      "PartyRefOrPartyRoleRef_FVO": {
         "type": "object",
         "description": "",
         "oneOf": [
           {
-            "$ref": "#/components/schemas/PartyRef_MVO"
+            "$ref": "#/components/schemas/PartyRef_FVO"
           },
           {
-            "$ref": "#/components/schemas/PartyRoleRef_MVO"
+            "$ref": "#/components/schemas/PartyRoleRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "PartyRef": "#/components/schemas/PartyRef_MVO",
-            "PartyRoleRef": "#/components/schemas/PartyRoleRef_MVO"
+            "PartyRef": "#/components/schemas/PartyRef_FVO",
+            "PartyRoleRef": "#/components/schemas/PartyRoleRef_FVO"
           }
         }
       },
-      "TaxDefinition_MVO": {
+      "TaxDefinition_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Extensible"
+            "$ref": "#/components/schemas/Extensible_FVO"
           },
           {
             "type": "object",
@@ -1990,33 +1896,33 @@
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "TaxDefinition": "#/components/schemas/TaxDefinition_MVO"
+            "TaxDefinition": "#/components/schemas/TaxDefinition_FVO"
           }
         }
       },
-      "AttachmentRefOrValue_MVO": {
+      "AttachmentRefOrValue_FVO": {
         "type": "object",
         "description": "The polymorphic attributes @type, @schemaLocation & @referredType are related to the Attachment entity and not the AttachmentRefOrValue class itself",
         "oneOf": [
           {
-            "$ref": "#/components/schemas/Attachment_MVO"
+            "$ref": "#/components/schemas/Attachment_FVO"
           },
           {
-            "$ref": "#/components/schemas/AttachmentRef_MVO"
+            "$ref": "#/components/schemas/AttachmentRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "Attachment": "#/components/schemas/Attachment_MVO",
-            "AttachmentRef": "#/components/schemas/AttachmentRef_MVO"
+            "Attachment": "#/components/schemas/Attachment_FVO",
+            "AttachmentRef": "#/components/schemas/AttachmentRef_FVO"
           }
         }
       },
-      "ContactMedium_MVO": {
+      "ContactMedium_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Extensible"
+            "$ref": "#/components/schemas/Extensible_FVO"
           },
           {
             "type": "object",
@@ -2043,34 +1949,34 @@
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "ContactMedium": "#/components/schemas/ContactMedium_MVO",
-            "SocialContactMedium": "#/components/schemas/SocialContactMedium_MVO",
-            "PhoneContactMedium": "#/components/schemas/PhoneContactMedium_MVO",
-            "GeographicAddressContactMedium": "#/components/schemas/GeographicAddressContactMedium_MVO",
-            "FaxContactMedium": "#/components/schemas/FaxContactMedium_MVO",
-            "EmailContactMedium": "#/components/schemas/EmailContactMedium_MVO"
+            "ContactMedium": "#/components/schemas/ContactMedium_FVO",
+            "SocialContactMedium": "#/components/schemas/SocialContactMedium_FVO",
+            "PhoneContactMedium": "#/components/schemas/PhoneContactMedium_FVO",
+            "GeographicAddressContactMedium": "#/components/schemas/GeographicAddressContactMedium_FVO",
+            "FaxContactMedium": "#/components/schemas/FaxContactMedium_FVO",
+            "EmailContactMedium": "#/components/schemas/EmailContactMedium_FVO"
           }
         }
       },
-      "AccountRef_MVO": {
+      "AccountRef_FVO": {
         "type": "object",
         "description": "Account reference. A account may be a party account or a financial account.",
         "allOf": [
           {
-            "$ref": "#/components/schemas/EntityRef"
+            "$ref": "#/components/schemas/EntityRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "AccountRef": "#/components/schemas/AccountRef_MVO"
+            "AccountRef": "#/components/schemas/AccountRef_FVO"
           }
         }
       },
-      "BillPresentationMedia_MVO": {
+      "BillPresentationMedia_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Entity_MVO"
+            "$ref": "#/components/schemas/Entity_FVO"
           },
           {
             "type": "object",
@@ -2084,35 +1990,38 @@
                 "type": "string",
                 "description": "An explanatory text describing this bill presentation media"
               }
-            }
+            },
+            "required": [
+              "name"
+            ]
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillPresentationMedia": "#/components/schemas/BillPresentationMedia_MVO"
+            "BillPresentationMedia": "#/components/schemas/BillPresentationMedia_FVO"
           }
         }
       },
-      "BillPresentationMediaRef_MVO": {
+      "BillPresentationMediaRef_FVO": {
         "type": "object",
         "description": "PresentationMedia reference. A mean of communicating a bill, supported by the associated bill format. For example, post mail, email, web page.",
         "allOf": [
           {
-            "$ref": "#/components/schemas/EntityRef"
+            "$ref": "#/components/schemas/EntityRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillPresentationMediaRef": "#/components/schemas/BillPresentationMediaRef_MVO"
+            "BillPresentationMediaRef": "#/components/schemas/BillPresentationMediaRef_FVO"
           }
         }
       },
-      "BillFormat_MVO": {
+      "BillFormat_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Entity_MVO"
+            "$ref": "#/components/schemas/Entity_FVO"
           },
           {
             "type": "object",
@@ -2126,35 +2035,38 @@
                 "type": "string",
                 "description": "An explanatory text for this bill format"
               }
-            }
+            },
+            "required": [
+              "name"
+            ]
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillFormat": "#/components/schemas/BillFormat_MVO"
+            "BillFormat": "#/components/schemas/BillFormat_FVO"
           }
         }
       },
-      "BillFormatRef_MVO": {
+      "BillFormatRef_FVO": {
         "type": "object",
         "description": "BillFormat reference. A bill format is a description of the way in which a bill is presented.",
         "allOf": [
           {
-            "$ref": "#/components/schemas/EntityRef"
+            "$ref": "#/components/schemas/EntityRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillFormatRef": "#/components/schemas/BillFormatRef_MVO"
+            "BillFormatRef": "#/components/schemas/BillFormatRef_FVO"
           }
         }
       },
-      "BillingCycleSpecification_MVO": {
+      "BillingCycleSpecification_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Entity_MVO"
+            "$ref": "#/components/schemas/Entity_FVO"
           },
           {
             "type": "object",
@@ -2199,28 +2111,31 @@
               "validFor": {
                 "$ref": "#/components/schemas/TimePeriod"
               }
-            }
+            },
+            "required": [
+              "name"
+            ]
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillingCycleSpecification": "#/components/schemas/BillingCycleSpecification_MVO"
+            "BillingCycleSpecification": "#/components/schemas/BillingCycleSpecification_FVO"
           }
         }
       },
-      "BillingCycleSpecificationRef_MVO": {
+      "BillingCycleSpecificationRef_FVO": {
         "type": "object",
         "description": "BillingCycleSpecification reference. A description of when to initiate a billing cycle and the various sub steps of a billing cycle.",
         "allOf": [
           {
-            "$ref": "#/components/schemas/EntityRef"
+            "$ref": "#/components/schemas/EntityRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "BillingCycleSpecificationRef": "#/components/schemas/BillingCycleSpecificationRef_MVO"
+            "BillingCycleSpecificationRef": "#/components/schemas/BillingCycleSpecificationRef_FVO"
           }
         }
       },
@@ -2345,25 +2260,25 @@
           }
         }
       },
-      "PartyRef_MVO": {
+      "PartyRef_FVO": {
         "type": "object",
         "description": "A Party reference",
         "allOf": [
           {
-            "$ref": "#/components/schemas/EntityRef"
+            "$ref": "#/components/schemas/EntityRef_FVO"
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "PartyRef": "#/components/schemas/PartyRef_MVO"
+            "PartyRef": "#/components/schemas/PartyRef_FVO"
           }
         }
       },
-      "PartyRoleRef_MVO": {
+      "PartyRoleRef_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/EntityRef"
+            "$ref": "#/components/schemas/EntityRef_FVO"
           },
           {
             "type": "object",
@@ -2383,14 +2298,14 @@
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "PartyRoleRef": "#/components/schemas/PartyRoleRef_MVO"
+            "PartyRoleRef": "#/components/schemas/PartyRoleRef_FVO"
           }
         }
       },
-      "Attachment_MVO": {
+      "Attachment_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/Entity_MVO"
+            "$ref": "#/components/schemas/Entity_FVO"
           },
           {
             "type": "object",
@@ -2429,20 +2344,24 @@
                 "type": "string",
                 "description": "a technical characterization of the attachment content format using IETF Mime Types"
               }
-            }
+            },
+            "required": [
+              "attachmentType",
+              "mimeType"
+            ]
           }
         ],
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "Attachment": "#/components/schemas/Attachment_MVO"
+            "Attachment": "#/components/schemas/Attachment_FVO"
           }
         }
       },
-      "AttachmentRef_MVO": {
+      "AttachmentRef_FVO": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/EntityRef"
+            "$ref": "#/components/schemas/EntityRef_FVO"
           },
           {
             "type": "object",
@@ -2462,7 +2381,7 @@
         "discriminator": {
           "propertyName": "@type",
           "mapping": {
-            "AttachmentRef": "#/components/schemas/AttachmentRef_MVO"
+            "AttachmentRef": "#/components/schemas/AttachmentRef_FVO"
           }
         }
       },
@@ -2484,280 +2403,71 @@
       }
     },
     "examples": {
-      "BillingAccount_retrieve_example_response": {
-        "value": {
-          "@type": "BillingAccount",
-          "paymentStatus": "In Arrears",
-          "creditLimit": {
-            "unit": "USD",
-            "value": 10000
-          },
-          "description": "This  billing account ...",
-          "href": "https://host:port/tmf-api/accountManagement/v5/bilingAccount/5430",
-          "id": "5430",
-          "lastModified": "2018-06-14T00:00:00.000Z",
-          "name": "Home Account",
-          "state": "Inactive",
-          "accountType": "Business",
-          "billStructure": {
-            "@type": "BillStructure",
-            "presentationMedia": [
-              {
-                "@type": "BillPresentationMedia",
-                "href": "https://host:port/tmf-api/accountManagement/v5/billPresentationMedia/9968",
-                "id": "9968",
-                "name": "Post Mail"
-              }
-            ],
-            "format": {
-              "@type": "BillFormat",
-              "href": "https://host:port/tmf-api/accountManagement/v5/billFormat/3555",
-              "id": "3555",
-              "name": "Detailed invoice"
+      "PartyAccount_list_example_response": {
+        "value": [
+          {
+            "@type": "PartyAccount",
+            "id": "9473",
+            "href": "https://host:port/tmf-api/accountManagement/v5/partyAccount/9473",
+            "creditLimit": {
+              "unit": "USD",
+              "value": 50000
             },
-            "cycleSpecification": {
-              "@type": "BillingCycleSpecification",
-              "dateShift": 54,
-              "frequency": "monthly",
-              "href": "https://host:port/tmf-api/accountManagement/v5/billingCycleSpecification/3828",
-              "id": "3828",
-              "name": "Annual billing"
-            }
+            "name": "Administration Account"
           },
-          "paymentPlan": [
-            {
-              "@type": "PaymentPlan",
-              "numberOfPayments": 4,
-              "paymentFrequency": "monthly",
-              "priority": 1,
-              "status": "Effective",
-              "totalAmount": {
-                "unit": "USD",
-                "value": 100
-              },
-              "planType": "regular",
-              "validFor": {
-                "startDateTime": "2018-06-11T00:00:00.000Z",
-                "endDateTime": "2019-01-10T00:00:00.000Z"
-              },
-              "paymentMethod": {
-                "@type": "PaymentMethodRef",
-                "href": "https://host:port/tmf-api/paymentMethods/v5/paymentMethod/2452",
-                "id": "2452",
-                "name": "professional payment"
-              }
-            }
-          ],
-          "financialAccount": {
-            "@referredType": "FinancialAccount",
-            "@type": "FinancialAccountRef",
-            "href": "https://host:port/tmf-api/accountManagement/v5/financialAccount/2063",
-            "id": "2063",
-            "name": "Partnership account"
-          },
-          "defaultPaymentMethod": {
-            "@type": "PaymentMethodRef",
-            "href": "https://host:port/tmf-api/paymentMethods/v5/paymentMethod/3537",
-            "id": "3537",
-            "name": "family payment"
-          },
+          {
+            "@type": "PartyAccount",
+            "id": "9899",
+            "href": "https://host:port/tmf-api/accountManagement/v5/partyAccount/9899",
+            "creditLimit": {
+              "unit": "USD",
+              "value": 1000000
+            },
+            "name": "Bahamas Account"
+          }
+        ],
+        "description": "Here is an example of a response for retrieving multiple PartyAccounts."
+      },
+      "PartyAccount_create_example_request": {
+        "value": {
+          "@type": "PartyAccount",
+          "name": "Travel account",
           "relatedParty": [
             {
-              "role": "service provider",
-              "@type": "RelatedPartyRefOrRelatedPartyRoleRef",
+              "@type": "RelatedPartyRefOrPartyRoleRef",
+              "role": "owner",
               "partyOrPartyRole": {
                 "@type": "PartyRefOrPartyRoleRef",
                 "@referredType": "Organization",
-                "href": "https://host:port/tmf-api/partyManagement/v5/organization/9947",
-                "id": "9947",
-                "name": "Richard Cole"
-              }
-            }
-          ],
-          "taxExemption": [
-            {
-              "@type": "TaxExemption",
-              "id": "1",
-              "certificateNumber": "45678909876",
-              "issuingJurisdiction": "Prefecture",
-              "reason": "Social",
-              "taxDefinition": [
-                {
-                  "@type": "TaxDefinition",
-                  "id": "96",
-                  "name": "Value Added Tax",
-                  "taxType": "federalVat"
-                }
-              ],
-              "attachment": {
-                "@type": "Attachment",
-                "id": "1232455768567",
-                "href": "https://host:port/tmf-api/document/v5/attachment/1232455768567",
-                "attachmentType": "taxExemptionCertificate",
-                "name": "TaxExemptionCertificate-12345.pdf",
-                "description": "Electronic version of the tax exemption certificate",
-                "mimeType": "application/pdf",
-                "url": "http://host:port/DocumentManager/666/TaxExemptionCertificate-12345.pdf"
-              },
-              "validFor": {
-                "startDateTime": "2018-06-13T00:00:00.000Z",
-                "endDateTime": "2019-01-10T00:00:00.000Z"
-              }
-            }
-          ],
-          "contact": [
-            {
-              "@type": "Contact",
-              "contactName": "Rachel Douglas",
-              "contactType": "secondary",
-              "partyRoleType": "Vendor",
-              "validFor": {
-                "startDateTime": "2018-06-17T00:00:00.000Z",
-                "endDateTime": "2019-01-10T00:00:00.000Z"
-              },
-              "contactMedium": [
-                {
-                  "@type": "GeographicAddressContactMedium",
-                  "preferred": true,
-                  "mediumType": "PostalAddress",
-                  "validFor": {
-                    "startDateTime": "2018-06-14T00:00:00.000Z",
-                    "endDateTime": "2019-01-10T00:00:00.000Z"
-                  },
-                  "city": "Paris",
-                  "country": "France",
-                  "postCode": "75014",
-                  "street1": "15 Rue des Canards"
-                }
-              ],
-              "relatedParty": {
-                "role": "owner",
-                "@type": "RelatedPartyRefOrRelatedPartyRoleRef",
-                "partyOrPartyRole": {
-                  "@type": "PartyRefOrPartyRoleRef",
-                  "@referredType": "Organization",
-                  "href": "https://host:port/tmf-api/partyManagement/v5/organization/9947",
-                  "id": "9947",
-                  "name": "Richard Cole"
-                }
-              }
-            }
-          ],
-          "accountBalance": [
-            {
-              "@type": "AccountBalance",
-              "amount": {
-                "unit": "USD",
-                "value": 58.33
-              },
-              "balanceType": "ReceivableBalance",
-              "validFor": {
-                "startDateTime": "2018-06-10T00:00:00.000Z",
-                "endDateTime": "2019-01-10T00:00:00.000Z"
-              }
-            }
-          ],
-          "accountRelationship": [
-            {
-              "@type": "AccountRelationship",
-              "relationshipType": "contains",
-              "validFor": {
-                "startDateTime": "2018-06-13T00:00:00.000Z",
-                "endDateTime": "2019-01-10T00:00:00.000Z"
-              },
-              "account": {
-                "@referredType": "BillingAccount",
-                "@type": "AccountRef",
-                "href": "https://host:port/tmf-api/accountManagement/v5/partyAccount/9327",
-                "id": "9327",
-                "name": "Paradise Account"
+                "href": "https://host:port/tmf-api/partyManagement/v5/organization/4665",
+                "id": "4665"
               }
             }
           ]
         },
-        "description": "Here is an example of a response for retrieving a specific BillingAccount."
+        "description": "Here is an example of a request for creating a PartyAccount."
       },
-      "BillingAccount_Update_example_Implied_Merge_request": {
+      "PartyAccount_create_example_response": {
         "value": {
-          "@type": "BillingAccount",
-          "name": "Richard Cole Account"
-        },
-        "description": "Here is an example of a request for updating a BillingAccount."
-      },
-      "BillingAccount_Update_example_Patch_Merge_request": {
-        "value": {
-          "@type": "BillingAccount",
-          "name": "Richard Cole Account"
-        },
-        "description": "Here is an example of a request for updating a BillingAccount."
-      },
-      "BillingAccount_Update_example_JSON_Patch_request": {
-        "value": {
-          "path": "/contact/contactType?/contact.contactName=Rachel Douglas",
-          "value": "primary",
-          "op": "replace"
-        },
-        "description": "Here is an example of a request for updating a BillingAccount."
-      },
-      "BillingAccount_Update_example_Implied_Merge_response": {
-        "value": {
-          "@type": "BillingAccount",
-          "href": "https://host:port/tmf-api/accountManagement/v5/billingAccount/5430",
-          "id": "5430",
-          "name": "Richard Cole Account",
+          "@type": "PartyAccount",
+          "href": "https://host:port/tmf-api/accountManagement/v5/partyAccount/4458",
+          "id": "4458",
+          "name": "Travel account",
           "relatedParty": [
             {
-              "role": "service provider",
+              "role": "owner",
               "@type": "RelatedPartyRefOrPartyRoleRef",
               "partyOrPartyRole": {
                 "@type": "PartyRefOrPartyRoleRef",
                 "@referredType": "Organization",
-                "id": "6838",
-                "href": "https://host:port/tmf-api/partyManagement/v5/organization/6838",
-                "name": "Richard Cole"
+                "href": "https://host:port/tmf-api/partyManagement/v5/organization/4665",
+                "id": "4665",
+                "name": "John Doe Ltd"
               }
             }
           ]
         },
-        "description": "Here is an example of a response for updating a BillingAccount."
-      },
-      "BillingAccount_Update_example_Patch_Merge_response": {
-        "value": {
-          "@type": "BillingAccount",
-          "href": "https://host:port/tmf-api/accountManagement/v5/billingAccount/5430",
-          "id": "5430",
-          "name": "Richard Cole Account",
-          "relatedParty": [
-            {
-              "role": "service provider",
-              "@type": "RelatedPartyRefOrPartyRoleRef",
-              "partyOrPartyRole": {
-                "@type": "PartyRefOrPartyRoleRef",
-                "@referredType": "Organization",
-                "id": "6838",
-                "href": "https://host:port/tmf-api/partyManagement/v5/organization/6838",
-                "name": "Richard Cole"
-              }
-            }
-          ]
-        },
-        "description": "Here is an example of a response for updating a BillingAccount."
-      },
-      "BillingAccount_Update_example_JSON_Patch_response": {
-        "value": {
-          "@type": "BillingAccount",
-          "href": "https://host:port/tmf-api/accountManagement/v5/billingAccount/5430",
-          "id": "5430",
-          "name": "Richard Cole Account",
-          "contact": [
-            {
-              "@type": "Contact",
-              "contactName": "Rachel Douglas",
-              "contactType": "primary"
-            }
-          ]
-        },
-        "description": "Here is an example of a response for updating a BillingAccount."
+        "description": "Here is an example of a response for creating a PartyAccount."
       }
     }
   }
@@ -2766,7 +2476,7 @@
 
 ```output.ts
 import { z } from "zod";
-const billingAccountSchema = z.object({
+const partyAccountSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
@@ -2787,8 +2497,7 @@ const billingAccountSchema = z.object({
   "billStructure": z.lazy(() => billStructureSchema).optional(),
   "paymentPlan": z.array(z.lazy(() => paymentPlanSchema)).describe("A list of payment plans that are active or expired for the account, for example if the customer had difficulty in paying").optional(),
   "financialAccount": z.lazy(() => financialAccountRefSchema).optional(),
-  "defaultPaymentMethod": z.lazy(() => paymentMethodRefSchema).optional(),
-  "ratingType": z.string().describe("Indicates whether the account follows a specific payment option such as prepaid or postpaid").optional()
+  "defaultPaymentMethod": z.lazy(() => paymentMethodRefSchema).optional()
 });
 const errorSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
@@ -2800,35 +2509,28 @@ const errorSchema = z.object({
   "status": z.string().describe("HTTP Error code extension").optional(),
   "referenceError": z.string().describe("URI of documentation describing the error.").optional()
 }).describe("Used when an API throws an Error, typically with a HTTP error response-code (3xx, 4xx, 5xx)");
-const billingAccount_MVOSchema = z.object({
+const partyAccount_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
+  "id": z.string().describe("unique identifier").optional(),
   "creditLimit": z.lazy(() => moneySchema).optional(),
   "description": z.string().describe("Detailed description of the account").optional(),
   "lastUpdate": z.string().datetime().describe("The date and time that the account was last updated").optional(),
-  "name": z.string().describe("Name of the account").optional(),
+  "name": z.string().describe("Name of the account"),
   "state": z.string().describe("Contains the lifecycle state such as: Active, Closed, Suspended and so on.").optional(),
   "accountType": z.string().describe("A categorization of an account, such as individual, joint, and so forth, whose instances share some of the same characteristics. Note: for flexibility we use a String here but an implementation may use an enumeration with a limited list of valid values.").optional(),
-  "relatedParty": z.array(z.lazy(() => relatedPartyRefOrPartyRoleRef_MVOSchema)).describe("List of parties that have some relationship with the account, for example the customer to whom the account belongs").optional(),
-  "taxExemption": z.array(z.lazy(() => taxExemptionCertificate_MVOSchema)).describe("List of tax exemptions that can be applied when calculating charges levied to the account.").optional(),
-  "contact": z.array(z.lazy(() => contact_MVOSchema)).describe("List of people who could be contacted regarding the account, for example the accountant who authorizes payments").optional(),
-  "accountBalance": z.array(z.lazy(() => accountBalance_MVOSchema)).describe("List of balances for the account, for example regular postpaid balance, deposit balance, write-off balance.").optional(),
-  "accountRelationship": z.array(z.lazy(() => accountRelationship_MVOSchema)).describe("List of balances related to the account. For example a list of billing accounts that contribute to a financial account").optional(),
+  "relatedParty": z.array(z.lazy(() => relatedPartyRefOrPartyRoleRef_FVOSchema)).describe("List of parties that have some relationship with the account, for example the customer to whom the account belongs"),
+  "taxExemption": z.array(z.lazy(() => taxExemptionCertificate_FVOSchema)).describe("List of tax exemptions that can be applied when calculating charges levied to the account.").optional(),
+  "contact": z.array(z.lazy(() => contact_FVOSchema)).describe("List of people who could be contacted regarding the account, for example the accountant who authorizes payments").optional(),
+  "accountBalance": z.array(z.lazy(() => accountBalance_FVOSchema)).describe("List of balances for the account, for example regular postpaid balance, deposit balance, write-off balance.").optional(),
+  "accountRelationship": z.array(z.lazy(() => accountRelationship_FVOSchema)).describe("List of balances related to the account. For example a list of billing accounts that contribute to a financial account").optional(),
   "paymentStatus": z.string().describe("The condition of the account, such as due, paid, in arrears.").optional(),
-  "billStructure": z.lazy(() => billStructure_MVOSchema).optional(),
-  "paymentPlan": z.array(z.lazy(() => paymentPlan_MVOSchema)).describe("A list of payment plans that are active or expired for the account, for example if the customer had difficulty in paying").optional(),
-  "financialAccount": z.lazy(() => financialAccountRef_MVOSchema).optional(),
-  "defaultPaymentMethod": z.lazy(() => paymentMethodRef_MVOSchema).optional(),
-  "ratingType": z.string().describe("Indicates whether the account follows a specific payment option such as prepaid or postpaid").optional()
+  "billStructure": z.lazy(() => billStructure_FVOSchema).optional(),
+  "paymentPlan": z.array(z.lazy(() => paymentPlan_FVOSchema)).describe("A list of payment plans that are active or expired for the account, for example if the customer had difficulty in paying").optional(),
+  "financialAccount": z.lazy(() => financialAccountRef_FVOSchema).optional(),
+  "defaultPaymentMethod": z.lazy(() => paymentMethodRef_FVOSchema).optional()
 });
-const jsonPatchOperationsSchema = z.array(z.lazy(() => jsonPatchSchema)).describe("JSONPatch Operations document as defined by RFC 6902");
-const jsonPatchSchema = z.object({
-  "op": z.enum(["add", "remove", "replace", "move", "copy", "test"]).describe("The operation to be performed"),
-  "path": z.string().describe("A JSON-Pointer"),
-  "value": z.any().describe("The value to be used within the operations.").optional(),
-  "from": z.string().describe("A string containing a JSON Pointer value.").optional()
-}).describe("A JSONPatch document as defined by RFC 6902");
 const billStructureSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
@@ -2869,15 +2571,15 @@ const paymentMethodRefSchema = z.object({
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional()
 }).describe("PaymentMethod reference. A payment method defines a specific mean of payment (e.g direct debit).");
-const billStructure_MVOSchema = z.object({
+const billStructure_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "presentationMedia": z.array(z.lazy(() => billPresentationMediaRefOrValue_MVOSchema)).optional(),
-  "format": z.lazy(() => billFormatRefOrValue_MVOSchema).optional(),
-  "cycleSpecification": z.lazy(() => billingCycleSpecificationRefOrValue_MVOSchema).optional()
+  "presentationMedia": z.array(z.lazy(() => billPresentationMediaRefOrValue_FVOSchema)).optional(),
+  "format": z.lazy(() => billFormatRefOrValue_FVOSchema).optional(),
+  "cycleSpecification": z.lazy(() => billingCycleSpecificationRefOrValue_FVOSchema).optional()
 });
-const paymentPlan_MVOSchema = z.object({
+const paymentPlan_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
@@ -2889,23 +2591,23 @@ const paymentPlan_MVOSchema = z.object({
   "totalAmount": z.lazy(() => moneySchema).optional(),
   "planType": z.string().describe("Type of payment plan").optional(),
   "validFor": z.lazy(() => timePeriodSchema).optional(),
-  "paymentMethod": z.lazy(() => paymentMethodRef_MVOSchema).optional()
+  "paymentMethod": z.lazy(() => paymentMethodRef_FVOSchema).optional()
 });
-const financialAccountRef_MVOSchema = z.object({
+const financialAccountRef_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "href": z.string().describe("The URI of the referred entity.").optional(),
   "id": z.string().describe("The identifier of the referred entity."),
+  "href": z.string().describe("The URI of the referred entity.").optional(),
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional()
 }).describe("AccountReceivable reference. An account of money owed by a party to another entity in exchange for goods or services that have been delivered or used. An account receivable aggregates the amounts of one or more party accounts (billing or settlement) owned by a given party.");
-const paymentMethodRef_MVOSchema = z.object({
+const paymentMethodRef_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "href": z.string().describe("The URI of the referred entity.").optional(),
   "id": z.string().describe("The identifier of the referred entity."),
+  "href": z.string().describe("The URI of the referred entity.").optional(),
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional()
 }).describe("PaymentMethod reference. A payment method defines a specific mean of payment (e.g direct debit).");
@@ -3026,89 +2728,93 @@ const timePeriodSchema = z.object({
   "startDateTime": z.string().datetime().describe("Start of the time period, using IETC-RFC-3339 format").optional(),
   "endDateTime": z.string().datetime().describe("End of the time period, using IETC-RFC-3339 format").optional()
 }).describe("A period of time, either as a deadline (endDateTime only) a startDateTime only, or both");
-const relatedPartyRefOrPartyRoleRef_MVOSchema = z.object({
+const relatedPartyRefOrPartyRoleRef_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "role": z.string().describe("Role played by the related party or party role in the context of the specific entity it is linked to. Such as 'initiator', 'customer',  'salesAgent', 'user'").optional(),
-  "partyOrPartyRole": z.lazy(() => partyRefOrPartyRoleRef_MVOSchema).optional()
+  "role": z.string().describe("Role played by the related party or party role in the context of the specific entity it is linked to. Such as 'initiator', 'customer',  'salesAgent', 'user'"),
+  "partyOrPartyRole": z.lazy(() => partyRefOrPartyRoleRef_FVOSchema).optional()
 });
-const taxExemptionCertificate_MVOSchema = z.object({
+const taxExemptionCertificate_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
   "id": z.string().describe("Identifier of the tax exemption within list of the exemptions").optional(),
-  "taxDefinition": z.array(z.lazy(() => taxDefinition_MVOSchema)).describe("A list of taxes that are covered by the exemption, e.g. City Tax, State Tax. The definition would include the exemption (e.g. for a rate exemption 0% would be a full exemption, 5% could be a partial exemption if the actual rate was 10%).").optional(),
+  "taxDefinition": z.array(z.lazy(() => taxDefinition_FVOSchema)).describe("A list of taxes that are covered by the exemption, e.g. City Tax, State Tax. The definition would include the exemption (e.g. for a rate exemption 0% would be a full exemption, 5% could be a partial exemption if the actual rate was 10%).").optional(),
   "validFor": z.lazy(() => timePeriodSchema).optional(),
   "certificateNumber": z.string().describe("Identifier of a document that shows proof of exemption from taxes for the taxing jurisdiction").optional(),
   "issuingJurisdiction": z.string().describe("Name of the jurisdiction that issued the exemption").optional(),
   "reason": z.string().describe("Reason for the tax exemption").optional(),
-  "attachment": z.lazy(() => attachmentRefOrValue_MVOSchema).optional()
+  "attachment": z.lazy(() => attachmentRefOrValue_FVOSchema).optional()
 });
-const contact_MVOSchema = z.object({
+const contact_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
   "id": z.string().describe("Identifier of the contact within list of the contacts (for entities with list)").optional(),
   "contactName": z.string().describe("A displayable name for that contact").optional(),
-  "contactType": z.string().describe("Type of contact (primary, secondary...)").optional(),
+  "contactType": z.string().describe("Type of contact (primary, secondary...)"),
   "partyRoleType": z.string().describe("Identifies what kind of party role type is linked to the contact (a account manager...)").optional(),
   "validFor": z.lazy(() => timePeriodSchema).optional(),
-  "contactMedium": z.array(z.lazy(() => contactMedium_MVOSchema)).describe("List of contact mediums for the contact, such as mobile phone number, email addreess, etc.").optional(),
-  "relatedParty": z.lazy(() => relatedPartyRefOrPartyRoleRef_MVOSchema).optional()
+  "contactMedium": z.array(z.lazy(() => contactMedium_FVOSchema)).describe("List of contact mediums for the contact, such as mobile phone number, email addreess, etc.").optional(),
+  "relatedParty": z.lazy(() => relatedPartyRefOrPartyRoleRef_FVOSchema).optional()
 });
-const accountBalance_MVOSchema = z.object({
+const accountBalance_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
   "id": z.string().describe("Identifier of the balance within list of the balances (for entities with list)").optional(),
-  "amount": z.lazy(() => moneySchema).optional(),
-  "balanceType": z.string().describe("Type of the balance : deposit balance, disputed balance, loyalty balance, receivable balance...").optional(),
-  "validFor": z.lazy(() => timePeriodSchema).optional()
+  "amount": z.lazy(() => moneySchema),
+  "balanceType": z.string().describe("Type of the balance : deposit balance, disputed balance, loyalty balance, receivable balance..."),
+  "validFor": z.lazy(() => timePeriodSchema)
 });
-const accountRelationship_MVOSchema = z.object({
+const accountRelationship_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "relationshipType": z.string().describe("Type of relationship").optional(),
+  "id": z.string().describe("unique identifier").optional(),
+  "relationshipType": z.string().describe("Type of relationship"),
   "validFor": z.lazy(() => timePeriodSchema).optional(),
-  "account": z.lazy(() => accountRef_MVOSchema).optional()
+  "account": z.lazy(() => accountRef_FVOSchema).optional()
 });
-const billPresentationMediaRefOrValue_MVOSchema = z.discriminatedUnion("@type", [z.object({
+const billPresentationMediaRefOrValue_FVOSchema = z.discriminatedUnion("@type", [z.object({
   "@type": z.literal("BillPresentationMedia"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "name": z.string().describe("A short descriptive name").optional(),
+  "id": z.string().describe("unique identifier").optional(),
+  "name": z.string().describe("A short descriptive name"),
   "description": z.string().describe("An explanatory text describing this bill presentation media").optional()
 }), z.object({
   "@type": z.literal("BillPresentationMediaRef"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "href": z.string().describe("The URI of the referred entity.").optional(),
   "id": z.string().describe("The identifier of the referred entity."),
+  "href": z.string().describe("The URI of the referred entity.").optional(),
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional()
 }).describe("PresentationMedia reference. A mean of communicating a bill, supported by the associated bill format. For example, post mail, email, web page.")]).describe("The polymorphic attributes @type, @schemaLocation & @referredType are related to the BillPresentationMedia entity and not the BillPresentationMediaRefOrValue class itself");
-const billFormatRefOrValue_MVOSchema = z.discriminatedUnion("@type", [z.object({
+const billFormatRefOrValue_FVOSchema = z.discriminatedUnion("@type", [z.object({
   "@type": z.literal("BillFormat"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "name": z.string().describe("A short descriptive name").optional(),
+  "id": z.string().describe("unique identifier").optional(),
+  "name": z.string().describe("A short descriptive name"),
   "description": z.string().describe("An explanatory text for this bill format").optional()
 }), z.object({
   "@type": z.literal("BillFormatRef"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "href": z.string().describe("The URI of the referred entity.").optional(),
   "id": z.string().describe("The identifier of the referred entity."),
+  "href": z.string().describe("The URI of the referred entity.").optional(),
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional()
 }).describe("BillFormat reference. A bill format is a description of the way in which a bill is presented.")]).describe("The polymorphic attributes @type, @schemaLocation & @referredType are related to the BillFormat entity and not the BillFormatRefOrValue class itself");
-const billingCycleSpecificationRefOrValue_MVOSchema = z.discriminatedUnion("@type", [z.object({
+const billingCycleSpecificationRefOrValue_FVOSchema = z.discriminatedUnion("@type", [z.object({
   "@type": z.literal("BillingCycleSpecification"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "name": z.string().describe("A short descriptive name").optional(),
+  "id": z.string().describe("unique identifier").optional(),
+  "name": z.string().describe("A short descriptive name"),
   "billingDateShift": z.number().describe("An offset of a billing/settlement date. The offset is expressed as number of days with regard to the start of the billing/settlement period.").optional(),
   "billingPeriod": z.string().describe("A billing time period. It can be recurring, for example: week, month, quarter of year, year .").optional(),
   "chargeDateOffset": z.number().describe("An offset of a date through which charges previously received by the billing system will appear on the bill. The offset is expressed as number of days with regard to the start of the BillingPeriod.").optional(),
@@ -3122,8 +2828,8 @@ const billingCycleSpecificationRefOrValue_MVOSchema = z.discriminatedUnion("@typ
   "@type": z.literal("BillingCycleSpecificationRef"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "href": z.string().describe("The URI of the referred entity.").optional(),
   "id": z.string().describe("The identifier of the referred entity."),
+  "href": z.string().describe("The URI of the referred entity.").optional(),
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional()
 }).describe("BillingCycleSpecification reference. A description of when to initiate a billing cycle and the various sub steps of a billing cycle.")]).describe("The polymorphic attributes @type, @schemaLocation & @referredType are related to the BillingCycleSpecification entity and not the BillingCycleSpecificationRefOrValue class itself");
@@ -3200,26 +2906,26 @@ const accountRefSchema = z.object({
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional()
 }).describe("Account reference. A account may be a party account or a financial account.");
-const partyRefOrPartyRoleRef_MVOSchema = z.discriminatedUnion("@type", [z.object({
+const partyRefOrPartyRoleRef_FVOSchema = z.discriminatedUnion("@type", [z.object({
   "@type": z.literal("PartyRef"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "href": z.string().describe("The URI of the referred entity.").optional(),
   "id": z.string().describe("The identifier of the referred entity."),
+  "href": z.string().describe("The URI of the referred entity.").optional(),
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional()
 }).describe("A Party reference"), z.object({
   "@type": z.literal("PartyRoleRef"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "href": z.string().describe("The URI of the referred entity.").optional(),
   "id": z.string().describe("The identifier of the referred entity."),
+  "href": z.string().describe("The URI of the referred entity.").optional(),
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional(),
   "partyId": z.string().describe("The identifier of the engaged party that is linked to the PartyRole object.").optional(),
   "partyName": z.string().describe("The name of the engaged party that is linked to the PartyRole object.").optional()
 })]);
-const taxDefinition_MVOSchema = z.object({
+const taxDefinition_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
@@ -3230,30 +2936,31 @@ const taxDefinition_MVOSchema = z.object({
   "jurisdictionLevel": z.string().describe("Level of the jurisdiction that levies the tax").optional(),
   "taxType": z.string().describe("Type of the tax.").optional()
 });
-const attachmentRefOrValue_MVOSchema = z.discriminatedUnion("@type", [z.object({
+const attachmentRefOrValue_FVOSchema = z.discriminatedUnion("@type", [z.object({
   "@type": z.literal("Attachment"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
+  "id": z.string().describe("unique identifier").optional(),
   "name": z.string().describe("The name of the attachment").optional(),
   "description": z.string().describe("A narrative text describing the content of the attachment").optional(),
   "url": z.string().describe("Uniform Resource Locator, is a web page address (a subset of URI)").optional(),
   "content": z.string().describe("The actual contents of the attachment object, if embedded, encoded as base64").optional(),
   "size": z.lazy(() => quantitySchema).optional(),
   "validFor": z.lazy(() => timePeriodSchema).optional(),
-  "attachmentType": z.string().describe("a business characterization of the purpose of the attachment, for example logo, instructionManual, contractCopy").optional(),
-  "mimeType": z.string().describe("a technical characterization of the attachment content format using IETF Mime Types").optional()
+  "attachmentType": z.string().describe("a business characterization of the purpose of the attachment, for example logo, instructionManual, contractCopy"),
+  "mimeType": z.string().describe("a technical characterization of the attachment content format using IETF Mime Types")
 }), z.object({
   "@type": z.literal("AttachmentRef"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "href": z.string().describe("The URI of the referred entity.").optional(),
   "id": z.string().describe("The identifier of the referred entity."),
+  "href": z.string().describe("The URI of the referred entity.").optional(),
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional(),
   "description": z.string().describe("A narrative text describing the content of the attachment").optional(),
   "url": z.string().describe("Link to the attachment media/content").optional()
 })]).describe("The polymorphic attributes @type, @schemaLocation & @referredType are related to the Attachment entity and not the AttachmentRefOrValue class itself");
-const contactMedium_MVOSchema = z.object({
+const contactMedium_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
@@ -3262,12 +2969,12 @@ const contactMedium_MVOSchema = z.object({
   "contactType": z.string().describe("Type of the contact medium to qualifiy it like pro email / personal email. This is not used to define the contact medium used.").optional(),
   "validFor": z.lazy(() => timePeriodSchema).optional()
 });
-const accountRef_MVOSchema = z.object({
+const accountRef_FVOSchema = z.object({
   "@type": z.string().describe("When sub-classing, this defines the sub-class Extensible name"),
   "@baseType": z.string().describe("When sub-classing, this defines the super-class").optional(),
   "@schemaLocation": z.string().describe("A URI to a JSON-Schema file that defines additional attributes and relationships").optional(),
-  "href": z.string().describe("The URI of the referred entity.").optional(),
   "id": z.string().describe("The identifier of the referred entity."),
+  "href": z.string().describe("The URI of the referred entity.").optional(),
   "name": z.string().describe("Name of the referred entity.").optional(),
   "@referredType": z.string().describe("The actual type of the target instance when needed for disambiguation.").optional()
 }).describe("Account reference. A account may be a party account or a financial account.");
@@ -3277,77 +2984,33 @@ const quantitySchema = z.object({
 }).describe("An amount in a given unit");
 export const requestSchemas = [z.object({
   "method": z.literal("get"),
-  "path": z.object({
-    "id": z.string().describe("Identifier of the Resource")
-  }),
+  "path": z.object({}),
   "query": z.object({
-    "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
+    "fields": z.string().describe("Comma-separated properties to be provided in response").optional(),
+    "offset": z.coerce.number().describe("Requested index for start of resources to be provided in response").optional(),
+    "limit": z.coerce.number().describe("Requested number of resources to be provided in response").optional()
   }),
   "headers": z.object({}),
   "body": z.undefined()
-}).describe("GET request for /billingAccount/{id}"), z.object({
-  "method": z.literal("patch"),
-  "path": z.object({
-    "id": z.string().describe("Identifier of the Resource")
-  }),
+}).describe("GET request for /partyAccount"), z.object({
+  "method": z.literal("post"),
+  "path": z.object({}),
   "query": z.object({
     "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
   }),
   "headers": z.object({
     "Content-Type": z.literal("application/json")
   }),
-  "body": z.lazy(() => billingAccount_MVOSchema)
-}).describe("PATCH request for /billingAccount/{id} with application/json"), z.object({
-  "method": z.literal("patch"),
-  "path": z.object({
-    "id": z.string().describe("Identifier of the Resource")
-  }),
-  "query": z.object({
-    "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
-  }),
-  "headers": z.object({
-    "Content-Type": z.literal("application/merge-patch+json")
-  }),
-  "body": z.lazy(() => billingAccount_MVOSchema)
-}).describe("PATCH request for /billingAccount/{id} with application/merge-patch+json"), z.object({
-  "method": z.literal("patch"),
-  "path": z.object({
-    "id": z.string().describe("Identifier of the Resource")
-  }),
-  "query": z.object({
-    "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
-  }),
-  "headers": z.object({
-    "Content-Type": z.literal("application/json-patch+json")
-  }),
-  "body": z.lazy(() => jsonPatchOperationsSchema)
-}).describe("PATCH request for /billingAccount/{id} with application/json-patch+json"), z.object({
-  "method": z.literal("patch"),
-  "path": z.object({
-    "id": z.string().describe("Identifier of the Resource")
-  }),
-  "query": z.object({
-    "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
-  }),
-  "headers": z.object({
-    "Content-Type": z.literal("application/json-patch-query+json")
-  }),
-  "body": z.lazy(() => jsonPatchOperationsSchema)
-}).describe("PATCH request for /billingAccount/{id} with application/json-patch-query+json"), z.object({
-  "method": z.literal("delete"),
-  "path": z.object({
-    "id": z.string().describe("Identifier of the Resource")
-  }),
-  "query": z.object({}),
-  "headers": z.object({}),
-  "body": z.undefined()
-}).describe("DELETE request for /billingAccount/{id}")];
+  "body": z.lazy(() => partyAccount_FVOSchema)
+}).describe("POST request for /partyAccount with application/json")];
 export const responseSchemas = [z.union([z.object({
   "status": z.literal(200),
   "headers": z.object({
+    "X-Total-Count": z.coerce.number().optional(),
+    "X-Result-Count": z.coerce.number().optional(),
     "content-type": z.literal("application/json")
   }),
-  "body": z.lazy(() => billingAccountSchema)
+  "body": z.array(z.lazy(() => partyAccountSchema))
 }), z.object({
   "status": z.literal(400),
   "headers": z.object({
@@ -3396,12 +3059,12 @@ export const responseSchemas = [z.union([z.object({
     "content-type": z.literal("application/json")
   }),
   "body": z.lazy(() => errorSchema)
-})]).describe("Responses for GET /billingAccount/{id} with request content type no body"), z.union([z.object({
-  "status": z.literal(200),
+})]).describe("Responses for GET /partyAccount with request content type no body"), z.union([z.object({
+  "status": z.literal(201),
   "headers": z.object({
     "content-type": z.literal("application/json")
   }),
-  "body": z.lazy(() => billingAccountSchema)
+  "body": z.lazy(() => partyAccountSchema)
 }), z.object({
   "status": z.literal(202),
   "headers": z.object({}),
@@ -3460,261 +3123,7 @@ export const responseSchemas = [z.union([z.object({
     "content-type": z.literal("application/json")
   }),
   "body": z.lazy(() => errorSchema)
-})]).describe("Responses for PATCH /billingAccount/{id} with request content type application/json"), z.union([z.object({
-  "status": z.literal(200),
-  "headers": z.object({
-    "content-type": z.literal("application/merge-patch+json")
-  }),
-  "body": z.lazy(() => billingAccountSchema)
-}), z.object({
-  "status": z.literal(202),
-  "headers": z.object({}),
-  "body": z.undefined()
-}), z.object({
-  "status": z.literal(400),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(401),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(403),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(404),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(405),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(409),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(500),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(501),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(503),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-})]).describe("Responses for PATCH /billingAccount/{id} with request content type application/merge-patch+json"), z.union([z.object({
-  "status": z.literal(200),
-  "headers": z.object({
-    "content-type": z.literal("application/json-patch+json")
-  }),
-  "body": z.union([z.lazy(() => billingAccountSchema), z.array(z.lazy(() => billingAccountSchema)), z.string().nullable()])
-}), z.object({
-  "status": z.literal(202),
-  "headers": z.object({}),
-  "body": z.undefined()
-}), z.object({
-  "status": z.literal(400),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(401),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(403),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(404),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(405),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(409),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(500),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(501),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(503),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-})]).describe("Responses for PATCH /billingAccount/{id} with request content type application/json-patch+json"), z.union([z.object({
-  "status": z.literal(200),
-  "headers": z.object({
-    "content-type": z.literal("application/json-patch-query+json")
-  }),
-  "body": z.union([z.lazy(() => billingAccountSchema), z.array(z.lazy(() => billingAccountSchema)), z.string().nullable()])
-}), z.object({
-  "status": z.literal(202),
-  "headers": z.object({}),
-  "body": z.undefined()
-}), z.object({
-  "status": z.literal(400),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(401),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(403),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(404),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(405),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(409),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(500),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(501),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(503),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-})]).describe("Responses for PATCH /billingAccount/{id} with request content type application/json-patch-query+json"), z.union([z.object({
-  "status": z.literal(202),
-  "headers": z.object({}),
-  "body": z.undefined()
-}), z.object({
-  "status": z.literal(204),
-  "headers": z.object({}),
-  "body": z.undefined()
-}), z.object({
-  "status": z.literal(400),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(401),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(403),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(404),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(405),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(409),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(500),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(501),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-}), z.object({
-  "status": z.literal(503),
-  "headers": z.object({
-    "content-type": z.literal("application/json")
-  }),
-  "body": z.lazy(() => errorSchema)
-})]).describe("Responses for DELETE /billingAccount/{id} with request content type no body")];
+})]).describe("Responses for POST /partyAccount with request content type application/json")];
 ```
 
 please identify any inconsistencies/errors between the original openapi specification of the api, and our machine generated zod schema to represent said api. i'm working on a program that translates the former to the latter, and need to identify any and all bugs in the process. basically, both representations NEED to be exactly the same, and i'm still trying to get there.
