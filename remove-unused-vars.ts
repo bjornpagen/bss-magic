@@ -75,20 +75,3 @@ export function removeUnusedVariablesFromCode(code: string): string {
 	}
 	return result.code
 }
-
-// Command-line interface for running with Bun
-if (require.main === module) {
-	const args = process.argv.slice(2)
-	if (args.length !== 2) {
-		console.error("Usage: bun remove-unused-vars.ts <input.ts> <output.ts>")
-		process.exit(1)
-	}
-	const [inputFile, outputFile] = args
-	try {
-		removeUnusedVariables(inputFile, outputFile)
-		console.log(`Unused variables removed. Output written to ${outputFile}`)
-	} catch (error) {
-		console.error("Error:", (error as Error).message)
-		process.exit(1)
-	}
-}

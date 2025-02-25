@@ -1,5 +1,6 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
+import { removeUnusedVariablesFromCode } from "./remove-unused-vars"
 
 // ### Type Definitions
 
@@ -810,8 +811,12 @@ if (require.main === module) {
 		const openapiJson = fs.readFileSync(path.resolve(inputFile), "utf-8")
 		const openapi = JSON.parse(openapiJson) as OpenAPISchema
 		const zodCode = transformOpenApiToZod(openapi)
-		fs.writeFileSync(path.resolve(outputFile), zodCode)
-		console.log(`Zod schemas written to ${outputFile}`)
+		// Remove unused variables before writing to file
+		const cleanedZodCode = removeUnusedVariablesFromCode(zodCode)
+		fs.writeFileSync(path.resolve(outputFile), cleanedZodCode)
+		console.log(
+			`Zod schemas with unused variables removed written to ${outputFile}`
+		)
 	} catch (error) {
 		console.error("Error:", (error as Error).message)
 		process.exit(1)
