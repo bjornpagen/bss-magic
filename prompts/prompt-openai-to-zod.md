@@ -1,5 +1,3 @@
-i'm writing a transpiler from openapi schema to zod schema. below is a transpilation created by my code.
-
 ```input.json
 {
   "openapi": "3.0.1",
@@ -3277,161 +3275,448 @@ const quantitySchema = z.object({
   "amount": z.number().describe("Numeric value in a given unit").optional(),
   "units": z.string().describe("Unit").optional()
 }).describe("An amount in a given unit");
-export const getRequestSchema = z.object({
-  method: z.literal("get"),
-  path: z.object({
+export const requestSchemas = [z.object({
+  "method": z.literal("get"),
+  "path": z.object({
     "id": z.string().describe("Identifier of the Resource")
   }),
-  query: z.object({
+  "query": z.object({
     "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
   }),
-  body: z.undefined().optional()
-});
-export const patchRequestSchema = z.object({
-  method: z.literal("patch"),
-  path: z.object({
+  "headers": z.object({}),
+  "body": z.undefined()
+}).describe("GET request for /billingAccount/{id}"), z.object({
+  "method": z.literal("patch"),
+  "path": z.object({
     "id": z.string().describe("Identifier of the Resource")
   }),
-  query: z.object({
+  "query": z.object({
     "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
   }),
-  body: z.union([z.lazy(() => billingAccount_MVOSchema), z.lazy(() => billingAccount_MVOSchema), z.lazy(() => jsonPatchOperationsSchema), z.lazy(() => jsonPatchOperationsSchema)])
-});
-export const deleteRequestSchema = z.object({
-  method: z.literal("delete"),
-  path: z.object({
+  "headers": z.object({
+    "Content-Type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => billingAccount_MVOSchema)
+}).describe("PATCH request for /billingAccount/{id} with application/json"), z.object({
+  "method": z.literal("patch"),
+  "path": z.object({
     "id": z.string().describe("Identifier of the Resource")
   }),
-  query: z.object({}).optional().default({}),
-  body: z.undefined().optional()
-});
-export const getResponseSchema = z.union([z.object({
-  status: z.literal(200),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => billingAccountSchema)
+  "query": z.object({
+    "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
+  }),
+  "headers": z.object({
+    "Content-Type": z.literal("application/merge-patch+json")
+  }),
+  "body": z.lazy(() => billingAccount_MVOSchema)
+}).describe("PATCH request for /billingAccount/{id} with application/merge-patch+json"), z.object({
+  "method": z.literal("patch"),
+  "path": z.object({
+    "id": z.string().describe("Identifier of the Resource")
+  }),
+  "query": z.object({
+    "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
+  }),
+  "headers": z.object({
+    "Content-Type": z.literal("application/json-patch+json")
+  }),
+  "body": z.lazy(() => jsonPatchOperationsSchema)
+}).describe("PATCH request for /billingAccount/{id} with application/json-patch+json"), z.object({
+  "method": z.literal("patch"),
+  "path": z.object({
+    "id": z.string().describe("Identifier of the Resource")
+  }),
+  "query": z.object({
+    "fields": z.string().describe("Comma-separated properties to be provided in response").optional()
+  }),
+  "headers": z.object({
+    "Content-Type": z.literal("application/json-patch-query+json")
+  }),
+  "body": z.lazy(() => jsonPatchOperationsSchema)
+}).describe("PATCH request for /billingAccount/{id} with application/json-patch-query+json"), z.object({
+  "method": z.literal("delete"),
+  "path": z.object({
+    "id": z.string().describe("Identifier of the Resource")
+  }),
+  "query": z.object({}),
+  "headers": z.object({}),
+  "body": z.undefined()
+}).describe("DELETE request for /billingAccount/{id}")];
+export const responseSchemas = [z.union([z.object({
+  "status": z.literal(200),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => billingAccountSchema)
 }), z.object({
-  status: z.literal(400),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(400),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(401),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(401),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(403),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(403),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(404),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(404),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(405),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(405),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(500),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(500),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(501),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(501),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(503),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
-})]);
-export const patchResponseSchema = z.union([z.object({
-  status: z.literal(200),
-  headers: z.object({}).describe("Response headers"),
-  body: z.union([z.lazy(() => billingAccountSchema), z.lazy(() => billingAccountSchema), z.any(), z.any()])
+  "status": z.literal(503),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+})]).describe("Responses for GET /billingAccount/{id} with request content type no body"), z.union([z.object({
+  "status": z.literal(200),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => billingAccountSchema)
 }), z.object({
-  status: z.literal(202),
-  headers: z.object({}).describe("Response headers"),
-  body: z.undefined()
+  "status": z.literal(202),
+  "headers": z.object({}),
+  "body": z.undefined()
 }), z.object({
-  status: z.literal(400),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(400),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(401),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(401),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(403),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(403),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(404),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(404),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(405),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(405),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(409),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(409),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(500),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(500),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(501),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(501),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(503),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
-})]);
-export const deleteResponseSchema = z.union([z.object({
-  status: z.literal(202),
-  headers: z.object({}).describe("Response headers"),
-  body: z.undefined()
+  "status": z.literal(503),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+})]).describe("Responses for PATCH /billingAccount/{id} with request content type application/json"), z.union([z.object({
+  "status": z.literal(200),
+  "headers": z.object({
+    "content-type": z.literal("application/merge-patch+json")
+  }),
+  "body": z.lazy(() => billingAccountSchema)
 }), z.object({
-  status: z.literal(204),
-  headers: z.object({}).describe("Response headers"),
-  body: z.undefined()
+  "status": z.literal(202),
+  "headers": z.object({}),
+  "body": z.undefined()
 }), z.object({
-  status: z.literal(400),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(400),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(401),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(401),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(403),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(403),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(404),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(404),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(405),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(405),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(409),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(409),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(500),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(500),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(501),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
+  "status": z.literal(501),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
 }), z.object({
-  status: z.literal(503),
-  headers: z.object({}).describe("Response headers"),
-  body: z.lazy(() => errorSchema)
-})]);
+  "status": z.literal(503),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+})]).describe("Responses for PATCH /billingAccount/{id} with request content type application/merge-patch+json"), z.union([z.object({
+  "status": z.literal(200),
+  "headers": z.object({
+    "content-type": z.literal("application/json-patch+json")
+  }),
+  "body": z.union([z.lazy(() => billingAccountSchema), z.array(z.lazy(() => billingAccountSchema)), z.string().nullable()])
+}), z.object({
+  "status": z.literal(202),
+  "headers": z.object({}),
+  "body": z.undefined()
+}), z.object({
+  "status": z.literal(400),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(401),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(403),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(404),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(405),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(409),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(500),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(501),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(503),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+})]).describe("Responses for PATCH /billingAccount/{id} with request content type application/json-patch+json"), z.union([z.object({
+  "status": z.literal(200),
+  "headers": z.object({
+    "content-type": z.literal("application/json-patch-query+json")
+  }),
+  "body": z.union([z.lazy(() => billingAccountSchema), z.array(z.lazy(() => billingAccountSchema)), z.string().nullable()])
+}), z.object({
+  "status": z.literal(202),
+  "headers": z.object({}),
+  "body": z.undefined()
+}), z.object({
+  "status": z.literal(400),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(401),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(403),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(404),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(405),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(409),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(500),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(501),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(503),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+})]).describe("Responses for PATCH /billingAccount/{id} with request content type application/json-patch-query+json"), z.union([z.object({
+  "status": z.literal(202),
+  "headers": z.object({}),
+  "body": z.undefined()
+}), z.object({
+  "status": z.literal(204),
+  "headers": z.object({}),
+  "body": z.undefined()
+}), z.object({
+  "status": z.literal(400),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(401),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(403),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(404),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(405),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(409),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(500),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(501),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+}), z.object({
+  "status": z.literal(503),
+  "headers": z.object({
+    "content-type": z.literal("application/json")
+  }),
+  "body": z.lazy(() => errorSchema)
+})]).describe("Responses for DELETE /billingAccount/{id} with request content type no body")];
 ```
 
-can you look very carefully at the input and output schemas, and make sure that everything is modelled exactly the same. pay close attention to any optional/required fields, or any data models that don't line up to be exactly the same. identify any possible bugs or possible improvements before this makes it into production.
+please identify any inconsistencies/errors between the original openapi specification of the api, and our machine generated zod schema to represent said api. i'm working on a program that translates the former to the latter, and need to identify any and all bugs in the process. basically, both representations NEED to be exactly the same, and i'm still trying to get there.
+
+can you help me point out any inconsistencies?
