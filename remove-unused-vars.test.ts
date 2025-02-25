@@ -63,6 +63,147 @@ console.log(a, c);
 	expect(result).not.toMatch(/var\s+d\s*=\s*4/)
 })
 
+test("handles lazy references in Zod schemas", () => {
+	const code = `
+import { z } from "zod";
+const unusedSchema = z.string();
+const referencedSchema = z.number();
+const parentSchema = z.object({
+  field: z.lazy(() => referencedSchema)
+});
+console.log(parentSchema);
+`
+	const result = removeUnusedVariablesFromCode(code)
+
+	expect(result).not.toMatch(/unusedSchema/)
+	expect(result).toMatch(/referencedSchema/)
+	expect(result).toMatch(/parentSchema/)
+})
+
+test("keeps exported variables even without direct references", () => {
+	const code = `
+const unused = "not exported";
+const exportedVar = "exported but no references";
+const referencedVar = "both exported and referenced";
+console.log(referencedVar);
+export { exportedVar, referencedVar }
+`
+	const result = removeUnusedVariablesFromCode(code)
+
+	expect(result).not.toMatch(/unused/)
+	expect(result).toMatch(/exportedVar/)
+	expect(result).toMatch(/referencedVar/)
+})
+
+test("keeps variables referenced in exported arrays", () => {
+	const code = `
+import { z } from "zod";
+const unusedSchema = z.string();
+const usedInExportSchema = z.number();
+const anotherUsedSchema = z.boolean();
+const exportedArray = [
+  z.lazy(() => usedInExportSchema),
+  z.lazy(() => anotherUsedSchema)
+];
+export { exportedArray }
+`
+	const result = removeUnusedVariablesFromCode(code)
+
+	expect(result).not.toMatch(/unusedSchema/)
+	expect(result).toMatch(/usedInExportSchema/)
+	expect(result).toMatch(/anotherUsedSchema/)
+	expect(result).toMatch(/exportedArray/)
+})
+
+test("handles circular references in Zod schemas", () => {
+	const code = `
+import { z } from "zod";
+const unusedSchema = z.string();
+const schemaA = z.object({
+  b: z.lazy(() => schemaB)
+});
+const schemaB = z.object({
+  a: z.lazy(() => schemaA)
+});
+export { schemaA }
+`
+	const result = removeUnusedVariablesFromCode(code)
+
+	expect(result).not.toMatch(/unusedSchema/)
+	expect(result).toMatch(/schemaA/)
+	expect(result).toMatch(/schemaB/)
+})
+
+test("keeps variables referenced inside z object definitions", () => {
+	const code = `
+import { z } from "zod";
+const subSchema = z.string();
+const unusedSchema = z.number();
+const mainSchema = z.object({
+  field: subSchema
+});
+export const requestSchemas = [
+  z.object({
+    method: z.literal("get"),
+    body: mainSchema
+  })
+];
+`
+	const result = removeUnusedVariablesFromCode(code)
+
+	expect(result).not.toMatch(/unusedSchema/)
+	expect(result).toMatch(/subSchema/)
+	expect(result).toMatch(/mainSchema/)
+})
+
+test("removes unused Zod schemas when not referenced", () => {
+	const code = `
+import { z } from "zod";
+const unusedSchema1 = z.string();
+const unusedSchema2 = z.object({
+  prop: z.number()
+});
+const usedSchema = z.object({
+  prop: z.string()
+});
+export const schemas = [usedSchema];
+`
+	const result = removeUnusedVariablesFromCode(code)
+
+	expect(result).not.toMatch(/unusedSchema1/)
+	expect(result).not.toMatch(/unusedSchema2/)
+	expect(result).toMatch(/usedSchema/)
+})
+
+test("handles complex nested Zod schema structures", () => {
+	const code = `
+import { z } from "zod";
+
+// These should be kept
+const referencedInLazy = z.string();
+const directlyUsed = z.number();
+const exportedSchema = z.boolean();
+
+// This should be removed
+const unused = z.any();
+
+const nested = z.object({
+  inner: z.lazy(() => referencedInLazy),
+  value: directlyUsed
+});
+
+console.log(nested);
+export { exportedSchema };
+`
+	const result = removeUnusedVariablesFromCode(code)
+
+	expect(result).not.toMatch(/unused/)
+	expect(result).toMatch(/referencedInLazy/)
+	expect(result).toMatch(/directlyUsed/)
+	expect(result).toMatch(/exportedSchema/)
+	expect(result).toMatch(/nested/)
+})
+
 test("removeUnusedVariables correctly processes files", () => {
 	const inputPath = path.join(TEST_DIR, "input.ts")
 	const outputPath = path.join(TEST_DIR, "output.ts")
