@@ -1,6 +1,5 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
-import { removeUnusedVariablesFromCode } from "./remove-unused-vars"
 
 // ### Type Definitions
 
@@ -16,6 +15,7 @@ type OpenAPISchema = {
 	description?: string
 	enum?: string[]
 	items?: OpenAPISchema
+	nullable?: boolean
 	discriminator?: {
 		propertyName: string
 		mapping?: Record<string, string>
@@ -26,19 +26,10 @@ type OpenAPISchema = {
 			string,
 			{
 				description: string
-				content?: Record<
-					string,
-					{
-						schema: OpenAPISchema
-					}
-				>
+				content?: Record<string, { schema: OpenAPISchema }>
 				headers?: Record<
 					string,
-					{
-						$ref?: string
-						schema?: OpenAPISchema
-						required?: boolean
-					}
+					{ $ref?: string; schema?: OpenAPISchema; required?: boolean }
 				>
 			}
 		>
@@ -49,10 +40,10 @@ type OpenAPISchema = {
 			[method: string]: {
 				parameters?: Array<{
 					$ref?: string
-					in: string
-					name: string
+					in?: string
+					name?: string
 					required?: boolean
-					schema: OpenAPISchema
+					schema?: OpenAPISchema
 					description?: string
 				}>
 				responses: Record<
@@ -60,19 +51,10 @@ type OpenAPISchema = {
 					{
 						$ref?: string
 						description?: string
-						content?: Record<
-							string,
-							{
-								schema: OpenAPISchema
-							}
-						>
+						content?: Record<string, { schema: OpenAPISchema }>
 						headers?: Record<
 							string,
-							{
-								$ref?: string
-								schema?: OpenAPISchema
-								required?: boolean
-							}
+							{ $ref?: string; schema?: OpenAPISchema; required?: boolean }
 						>
 					}
 				>
@@ -84,6 +66,12 @@ type OpenAPISchema = {
 			}
 		}
 	>
+	// Additional properties needed for response handling
+	headers?: Record<
+		string,
+		{ $ref?: string; schema?: OpenAPISchema; required?: boolean }
+	>
+	content?: Record<string, { schema: OpenAPISchema }>
 }
 
 /** Zod Abstract Syntax Tree (AST) for type-safe schema representation */
@@ -112,7 +100,17 @@ type ZodAST =
 	| { type: "coerce"; schema: ZodAST; description?: string }
 	| { type: "datetime"; description?: string }
 	| { type: "any"; description?: string }
-	| { type: "union"; options: ZodAST[]; description?: string } // Added "union" type
+	| { type: "union"; options: ZodAST[]; description?: string }
+	| { type: "nullable"; schema: ZodAST; description?: string }
+
+/** Parameter type for clarity in path and query parameter handling */
+type Parameter = {
+	in: string
+	name: string
+	required?: boolean
+	schema: OpenAPISchema
+	description?: string
+}
 
 // ### Utility Functions
 
@@ -146,7 +144,7 @@ function openApiSchemaToZodAst(
 	schema: OpenAPISchema,
 	refResolver: (ref: string) => string,
 	openapi: OpenAPISchema,
-	options: { coerce?: boolean; isHeader?: boolean } = {}
+	schemaOptions: { coerce?: boolean; isHeader?: boolean } = {}
 ): ZodAST {
 	if (schema.$ref) {
 		const schemaName = getSchemaNameFromRef(schema.$ref)
@@ -158,73 +156,89 @@ function openApiSchemaToZodAst(
 			}
 		}
 		const resolvedSchema = resolveRef(openapi, schema.$ref)
-		return openApiSchemaToZodAst(resolvedSchema, refResolver, openapi, options)
+		return openApiSchemaToZodAst(
+			resolvedSchema,
+			refResolver,
+			openapi,
+			schemaOptions
+		)
 	}
 
-	if (schema.oneOf && schema.discriminator) {
-		const discriminatorProp = schema.discriminator.propertyName
-		const mapping = schema.discriminator.mapping || {}
-		const unionOptions: ZodAST[] = []
-		for (const subSchema of schema.oneOf) {
-			if (subSchema.$ref) {
-				const ref = subSchema.$ref
-				const typeValue = Object.entries(mapping).find(
-					([, value]) => value === ref
-				)?.[0]
-				if (typeValue) {
-					const resolvedSchema = resolveRef(openapi, ref)
-					const subAst = openApiSchemaToZodAst(
-						resolvedSchema,
-						refResolver,
-						openapi,
-						options
-					)
-					if (subAst.type === "object") {
-						const extendedProperties = { ...subAst.properties }
-						extendedProperties[discriminatorProp] = {
-							type: "literal",
-							value: typeValue
+	if (schema.oneOf) {
+		if (schema.discriminator) {
+			const discriminatorProp = schema.discriminator.propertyName
+			const mapping = schema.discriminator.mapping || {}
+			const unionOptions: ZodAST[] = []
+			for (const subSchema of schema.oneOf) {
+				if (subSchema.$ref) {
+					const ref = subSchema.$ref
+					const typeValue = Object.entries(mapping).find(
+						([, value]) => value === ref
+					)?.[0]
+					if (typeValue) {
+						const resolvedSchema = resolveRef(openapi, ref)
+						const subAst = openApiSchemaToZodAst(
+							resolvedSchema,
+							refResolver,
+							openapi,
+							schemaOptions
+						)
+						if (subAst.type === "object") {
+							const extendedProperties = { ...subAst.properties }
+							extendedProperties[discriminatorProp] = {
+								type: "literal",
+								value: typeValue
+							}
+							const extendedRequired = subAst.required.includes(
+								discriminatorProp
+							)
+								? subAst.required
+								: [...subAst.required, discriminatorProp]
+							unionOptions.push({
+								type: "object",
+								properties: extendedProperties,
+								required: extendedRequired,
+								description: subAst.description
+							})
+						} else {
+							throw new Error("Resolved subschema in oneOf must be an object")
 						}
-						const extendedRequired = subAst.required.includes(discriminatorProp)
-							? subAst.required
-							: [...subAst.required, discriminatorProp]
-						unionOptions.push({
-							type: "object",
-							properties: extendedProperties,
-							required: extendedRequired,
-							description: subAst.description
-						})
-					} else {
-						throw new Error("Resolved subschema in oneOf must be an object")
 					}
 				}
-			} else {
-				// Handle inline subschemas if needed
+			}
+			return {
+				type: "discriminatedUnion",
+				discriminator: discriminatorProp,
+				options: unionOptions,
+				description: schema.description
 			}
 		}
-		return {
-			type: "discriminatedUnion",
-			discriminator: discriminatorProp,
-			options: unionOptions,
+		const schemaOneOf = schema.oneOf.map((subSchema) =>
+			openApiSchemaToZodAst(subSchema, refResolver, openapi, schemaOptions)
+		)
+		let ast: ZodAST = {
+			type: "union",
+			options: schemaOneOf,
 			description: schema.description
 		}
+		if (schema.nullable) {
+			ast = { type: "nullable", schema: ast, description: schema.description }
+		}
+		return ast
 	}
 
 	if (schema.allOf) {
 		const properties: Record<string, ZodAST> = {}
 		const required: Set<string> = new Set(schema.required || [])
-
 		for (const subSchema of schema.allOf) {
 			const subAst = openApiSchemaToZodAst(
 				subSchema,
 				refResolver,
 				openapi,
-				options
+				schemaOptions
 			)
 			if (subAst.type === "object") {
-				for (const [propName, propAst] of Object.entries(subAst.properties)) {
-					properties[propName] = propAst
-				}
+				Object.assign(properties, subAst.properties)
 				for (const req of subAst.required) {
 					required.add(req)
 				}
@@ -237,21 +251,16 @@ function openApiSchemaToZodAst(
 					resolvedSchema,
 					refResolver,
 					openapi,
-					options
+					schemaOptions
 				)
 				if (resolvedAst.type === "object") {
-					for (const [propName, propAst] of Object.entries(
-						resolvedAst.properties
-					)) {
-						properties[propName] = propAst
-					}
+					Object.assign(properties, resolvedAst.properties)
 					for (const req of resolvedAst.required) {
 						required.add(req)
 					}
 				}
 			}
 		}
-
 		return {
 			type: "object",
 			properties,
@@ -263,15 +272,14 @@ function openApiSchemaToZodAst(
 	if (schema.properties) {
 		const properties: Record<string, ZodAST> = {}
 		const required = schema.required || []
-		const schemaProperties = schema.properties || {}
 		for (const [propName, propSchema] of Object.entries(
-			schemaProperties as Record<string, OpenAPISchema>
+			schema.properties || {}
 		)) {
 			properties[propName] = openApiSchemaToZodAst(
 				propSchema,
 				refResolver,
 				openapi,
-				options
+				schemaOptions
 			)
 		}
 		return {
@@ -285,23 +293,10 @@ function openApiSchemaToZodAst(
 	let ast: ZodAST
 	switch (schema.type) {
 		case "object": {
-			const properties: Record<string, ZodAST> = {}
-			const required = schema.required || []
-			const schemaProperties = schema.properties || {}
-			for (const [propName, propSchema] of Object.entries(
-				schemaProperties as Record<string, OpenAPISchema>
-			)) {
-				properties[propName] = openApiSchemaToZodAst(
-					propSchema,
-					refResolver,
-					openapi,
-					options
-				)
-			}
 			ast = {
 				type: "object",
-				properties,
-				required,
+				properties: {},
+				required: schema.required || [],
 				description: schema.description
 			}
 			break
@@ -326,7 +321,7 @@ function openApiSchemaToZodAst(
 		case "number":
 		case "integer": {
 			ast = { type: "number", description: schema.description }
-			if (options.coerce || options.isHeader) {
+			if (schemaOptions.coerce || schemaOptions.isHeader) {
 				ast = { type: "coerce", schema: ast, description: schema.description }
 			}
 			break
@@ -343,15 +338,18 @@ function openApiSchemaToZodAst(
 				schema.items,
 				refResolver,
 				openapi,
-				options
+				schemaOptions
 			)
 			ast = { type: "array", items: itemsAst, description: schema.description }
 			break
 		}
-		default:
-			ast = { type: "any", description: schema.description } // Changed to "any"
+		default: {
+			ast = { type: "any", description: schema.description }
+		}
 	}
-
+	if (schema.nullable) {
+		ast = { type: "nullable", schema: ast, description: schema.description }
+	}
 	return ast
 }
 
@@ -368,127 +366,127 @@ function generateZodCode(ast: ZodAST): string {
 					return `${JSON.stringify(propName)}: ${propCode}`
 				}
 			)
-			let code = `z.object({ ${props.join(", ")} })`
+			let codeStr = `z.object({ ${props.join(", ")} })`
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "string": {
-			let code = "z.string()"
+			let codeStr = "z.string()"
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "number": {
-			let code = "z.number()"
+			let codeStr = "z.number()"
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "boolean": {
-			let code = "z.boolean()"
+			let codeStr = "z.boolean()"
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "array": {
 			const itemsCode = generateZodCode(ast.items)
-			let code = `z.array(${itemsCode})`
+			let codeStr = `z.array(${itemsCode})`
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "enum": {
-			let code = `z.enum(${JSON.stringify(ast.values)})`
+			let codeStr = `z.enum(${JSON.stringify(ast.values)})`
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
-		case "reference":
+		case "reference": {
 			return `z.lazy(() => ${ast.ref})`
+		}
 		case "literal": {
-			let code = `z.literal(${JSON.stringify(ast.value)})`
+			let codeStr = `z.literal(${JSON.stringify(ast.value)})`
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "merge": {
 			if (ast.schemas.length === 0) {
 				throw new Error("Merge must have at least one schema")
 			}
-			let code = generateZodCode(ast.schemas[0])
+			let codeStr = generateZodCode(ast.schemas[0])
 			for (let i = 1; i < ast.schemas.length; i++) {
-				code = `${code}.merge(${generateZodCode(ast.schemas[i])})`
+				codeStr = `${codeStr}.merge(${generateZodCode(ast.schemas[i])})`
 			}
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "undefined": {
-			let code = "z.undefined()"
+			let codeStr = "z.undefined()"
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "discriminatedUnion": {
 			const optionsCode = ast.options
 				.map((option) => generateZodCode(option))
 				.join(", ")
-			let code = `z.discriminatedUnion(${JSON.stringify(ast.discriminator)}, [${optionsCode}])`
+			let codeStr = `z.discriminatedUnion(${JSON.stringify(ast.discriminator)}, [${optionsCode}])`
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "coerce": {
-			if (ast.schema.type === "number") {
-				let code = "z.coerce.number()"
-				if (ast.description) {
-					code += `.describe(${JSON.stringify(ast.description)})`
-				}
-				return code
-			}
+			let codeStr = "z.coerce.number()"
 			if (ast.schema.type === "boolean") {
-				let code = "z.coerce.boolean()"
-				if (ast.description) {
-					code += `.describe(${JSON.stringify(ast.description)})`
-				}
-				return code
+				codeStr = "z.coerce.boolean()"
 			}
-			throw new Error("Coercion only supported for number and boolean schemas")
+			if (ast.description) {
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
+			}
+			return codeStr
 		}
 		case "datetime": {
-			let code = "z.string().datetime()"
+			let codeStr = "z.string().datetime()"
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "any": {
-			let code = "z.any()"
+			let codeStr = "z.any()"
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
 		}
 		case "union": {
-			const optionsCode = ast.options
+			let codeStr = `z.union([${ast.options
 				.map((option) => generateZodCode(option))
-				.join(", ")
-			let code = `z.union([${optionsCode}])`
+				.join(", ")}])`
 			if (ast.description) {
-				code += `.describe(${JSON.stringify(ast.description)})`
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
 			}
-			return code
+			return codeStr
+		}
+		case "nullable": {
+			let codeStr = `${generateZodCode(ast.schema)}.nullable()`
+			if (ast.description) {
+				codeStr += `.describe(${JSON.stringify(ast.description)})`
+			}
+			return codeStr
 		}
 	}
 }
@@ -503,332 +501,347 @@ function getSchemaVariable(ref: string): string {
 	return `${schemaName[0].toLowerCase()}${schemaName.slice(1)}Schema`
 }
 
-/** Gets the Zod AST for a response's body schema */
-function getResponseSchema(
-	response: OpenAPISchema & {
-		content?: Record<string, { schema: OpenAPISchema }>
-	},
-	openapi: OpenAPISchema,
-	refResolver: (ref: string) => string
-): ZodAST {
-	if (response.$ref) {
-		const resolvedResponse = resolveRef(openapi, response.$ref)
-		return getResponseSchema(resolvedResponse, openapi, refResolver)
-	}
-	if (response.content) {
-		const bodyAsts: ZodAST[] = []
-		for (const [_, mediaType] of Object.entries(response.content)) {
-			if (mediaType.schema) {
-				const schemaAst = openApiSchemaToZodAst(
-					mediaType.schema,
-					refResolver,
-					openapi
-				)
-				bodyAsts.push(schemaAst)
-			}
-		}
-		if (bodyAsts.length > 0) {
-			return bodyAsts.length > 1
-				? { type: "union", options: bodyAsts }
-				: bodyAsts[0]
-		}
-	}
-	return { type: "undefined" }
-}
-
-/** Checks if an object is a valid header definition with a schema property */
-function isHeaderDefinition(
-	obj: unknown
-): obj is { schema?: OpenAPISchema; required?: boolean } {
-	return typeof obj === "object" && obj !== null && "schema" in obj
-}
-
-/** Gets the Zod AST for a response's headers schema */
-function getHeadersSchemaAst(
-	response: OpenAPISchema & {
-		headers?: Record<
-			string,
-			{
-				$ref?: string
-				schema?: OpenAPISchema
-				required?: boolean
-			}
-		>
-	},
-	openapi: OpenAPISchema,
-	refResolver: (ref: string) => string
-): ZodAST {
-	if (response.$ref) {
-		const resolvedResponse = resolveRef(openapi, response.$ref)
-		return getHeadersSchemaAst(resolvedResponse, openapi, refResolver)
-	}
-	const headers = response.headers || {}
-	const properties: Record<string, ZodAST> = {}
-	const requiredHeaders: string[] = []
-	for (const [headerName, headerDef] of Object.entries(headers)) {
-		let headerSchema: OpenAPISchema = {}
-
-		if (headerDef.$ref) {
-			const resolvedHeader = resolveRef(openapi, headerDef.$ref)
-
-			if (isHeaderDefinition(resolvedHeader)) {
-				headerSchema = resolvedHeader.schema || {}
-			} else {
-				console.warn(
-					`Resolved header reference ${headerDef.$ref} does not have expected schema structure`
-				)
-			}
-		} else {
-			headerSchema = headerDef.schema || {}
-		}
-
-		const headerAst = openApiSchemaToZodAst(
-			headerSchema,
-			refResolver,
-			openapi,
-			{
-				isHeader: true
-			}
-		)
-		properties[headerName] = headerAst
-		if (headerDef.required) {
-			requiredHeaders.push(headerName)
-		}
-	}
-	return {
-		type: "object",
-		properties,
-		required: requiredHeaders,
-		description: "Response headers"
-	}
-}
-
-/** Generates the request schema for a specific operation */
-function generateRequestSchema(
-	method: string,
+/** Generates the path parameters schema AST */
+function generatePathParamsAst(
 	operation: {
 		parameters?: Array<{
 			$ref?: string
-			in: string
-			name: string
+			in?: string
+			name?: string
 			required?: boolean
-			schema: OpenAPISchema
+			schema?: OpenAPISchema
 			description?: string
 		}>
-		requestBody?: {
-			$ref?: string
-			content?: Record<string, { schema: OpenAPISchema }>
-			required?: boolean
-		}
 	},
 	openapi: OpenAPISchema,
 	refResolver: (ref: string) => string
-): string {
-	type Parameter = {
-		$ref?: string
-		in: string
-		name: string
-		required?: boolean
-		schema: OpenAPISchema
-		description?: string
-	}
-
-	// Process parameters, resolving any references
-	const rawParams = operation.parameters || []
-	const params: Parameter[] = rawParams.map((param) => {
-		if (param.$ref) {
-			return resolveRef(openapi, param.$ref) as Parameter
-		}
-		return param
-	})
-
-	const pathParams = params.filter((p: Parameter) => p.in === "path")
-	const queryParams = params.filter((p: Parameter) => p.in === "query")
-
-	const pathSchemaAst: ZodAST = {
-		type: "object",
-		properties: {},
-		required: []
-	}
+): ZodAST {
+	const params = operation.parameters || []
+	const pathParams = params
+		.map((p) => (p.$ref ? (resolveRef(openapi, p.$ref) as Parameter) : p))
+		.filter((p) => p.in === "path" && p.name && p.schema)
+	const properties: Record<string, ZodAST> = {}
+	const required: string[] = []
 	for (const param of pathParams) {
-		if (!param.schema) {
-			throw new Error(`Parameter ${param.name} has no schema`)
-		}
-		const paramAst = openApiSchemaToZodAst(param.schema, refResolver, openapi)
+		// We filtered to ensure these exist above
+		const paramName = param.name as string
+		const paramSchema = param.schema as OpenAPISchema
+
+		const paramAst = openApiSchemaToZodAst(paramSchema, refResolver, openapi)
 		if (param.description) {
 			paramAst.description = param.description
 		}
-		pathSchemaAst.properties[param.name] = paramAst
+		properties[paramName] = paramAst
 		if (param.required) {
-			pathSchemaAst.required.push(param.name)
+			required.push(paramName)
 		}
 	}
+	return { type: "object", properties, required }
+}
 
-	const querySchemaAst: ZodAST = {
-		type: "object",
-		properties: {},
-		required: []
-	}
+/** Generates the query parameters schema AST */
+function generateQueryParamsAst(
+	operation: {
+		parameters?: Array<{
+			$ref?: string
+			in?: string
+			name?: string
+			required?: boolean
+			schema?: OpenAPISchema
+			description?: string
+		}>
+	},
+	openapi: OpenAPISchema,
+	refResolver: (ref: string) => string
+): ZodAST {
+	const params = operation.parameters || []
+	const queryParams = params
+		.map((p) => (p.$ref ? (resolveRef(openapi, p.$ref) as Parameter) : p))
+		.filter((p) => p.in === "query" && p.name && p.schema)
+	const properties: Record<string, ZodAST> = {}
+	const required: string[] = []
 	for (const param of queryParams) {
-		if (!param.schema) {
-			throw new Error(`Parameter ${param.name} has no schema`)
-		}
-		const paramAst = openApiSchemaToZodAst(param.schema, refResolver, openapi, {
+		// We filtered to ensure these exist above
+		const paramName = param.name as string
+		const paramSchema = param.schema as OpenAPISchema
+
+		const paramAst = openApiSchemaToZodAst(paramSchema, refResolver, openapi, {
 			coerce: true
 		})
 		if (param.description) {
 			paramAst.description = param.description
 		}
-		querySchemaAst.properties[param.name] = paramAst
+		properties[paramName] = paramAst
 		if (param.required) {
-			querySchemaAst.required.push(param.name)
+			required.push(paramName)
 		}
 	}
+	return { type: "object", properties, required }
+}
 
-	let bodyAst: ZodAST
-	let isBodyRequired = false
-	if (operation.requestBody) {
-		let requestBody: {
+/** Generates the headers schema AST for responses */
+function getHeadersSchemaAst(
+	response: OpenAPISchema,
+	contentType: string | null,
+	openapi: OpenAPISchema,
+	refResolver: (ref: string) => string
+): ZodAST {
+	const resolvedResponse = response.$ref
+		? resolveRef(openapi, response.$ref)
+		: response
+	const headers = resolvedResponse.headers || {}
+	const properties: Record<string, ZodAST> = {}
+	const required: string[] = []
+
+	for (const [headerName, headerDefRaw] of Object.entries(headers)) {
+		const headerDef = headerDefRaw as {
 			$ref?: string
-			content?: Record<string, { schema: OpenAPISchema }>
+			schema?: OpenAPISchema
 			required?: boolean
-		} = operation.requestBody
-		if (requestBody.$ref) {
-			const resolved = resolveRef(openapi, requestBody.$ref)
-			requestBody = resolved as {
-				$ref?: string
-				content?: Record<string, { schema: OpenAPISchema }>
-				required?: boolean
-			}
 		}
-		if (requestBody.content) {
-			const bodyAsts: ZodAST[] = []
-			for (const [_, mediaType] of Object.entries(requestBody.content)) {
-				if (mediaType.schema) {
-					const schemaAst = openApiSchemaToZodAst(
-						mediaType.schema,
-						refResolver,
-						openapi
-					)
-					bodyAsts.push(schemaAst)
-				}
-			}
-			if (bodyAsts.length > 0) {
-				bodyAst =
-					bodyAsts.length > 1
-						? { type: "union", options: bodyAsts }
-						: bodyAsts[0]
-			} else {
-				bodyAst = { type: "undefined" }
-			}
-		} else {
-			bodyAst = { type: "undefined" }
+		let headerSchema: OpenAPISchema = headerDef.schema || {}
+		if (headerDef.$ref) {
+			const resolvedHeader = resolveRef(openapi, headerDef.$ref)
+			headerSchema =
+				"schema" in resolvedHeader ? resolvedHeader.schema || {} : headerSchema
 		}
-		isBodyRequired = requestBody.required ?? false
-	} else {
-		bodyAst = { type: "undefined" }
+		const headerAst = openApiSchemaToZodAst(
+			headerSchema,
+			refResolver,
+			openapi,
+			{ isHeader: true }
+		)
+		properties[headerName] = headerAst
+		if (headerDef.required) {
+			required.push(headerName)
+		}
 	}
 
-	// Generate Zod code for path, query, and body with coercion to empty object
-	let pathCode = generateZodCode(pathSchemaAst)
-	if (Object.keys(pathSchemaAst.properties).length === 0) {
-		pathCode = `${pathCode}.optional().default({})`
+	if (contentType) {
+		properties["content-type"] = { type: "literal", value: contentType }
+		required.push("content-type")
 	}
 
-	let queryCode = generateZodCode(querySchemaAst)
-	if (Object.keys(querySchemaAst.properties).length === 0) {
-		queryCode = `${queryCode}.optional().default({})`
+	return {
+		type: "object",
+		properties,
+		required
 	}
-
-	let bodyCode = generateZodCode(bodyAst)
-	if (!isBodyRequired) {
-		bodyCode = `${bodyCode}.optional()`
-	}
-
-	const requestSchemaCode = `z.object({
-    method: z.literal(${JSON.stringify(method)}),
-    path: ${pathCode},
-    query: ${queryCode},
-    body: ${bodyCode},
-  })`
-
-	return requestSchemaCode
 }
 
 /** Transforms an OpenAPI schema to Zod TypeScript code for all operations */
 function transformOpenApiToZod(openapi: OpenAPISchema): string {
 	const paths = openapi.paths || {}
 	const schemaDefs: string[] = []
-	const requestDefs: string[] = []
-	const responseDefs: string[] = []
+	const requestSchemaCodes: string[] = []
+	const responseSchemaCodes: string[] = []
 
-	// Generate all schema definitions from components
+	// Generate schema definitions
 	const schemas = openapi.components?.schemas || {}
 	for (const [schemaName, schema] of Object.entries(schemas)) {
 		const variableName = getSchemaVariable(`#/components/schemas/${schemaName}`)
 		const ast = openApiSchemaToZodAst(schema, getSchemaVariable, openapi)
-		const code = generateZodCode(ast)
-		schemaDefs.push(`const ${variableName} = ${code};`)
+		schemaDefs.push(`const ${variableName} = ${generateZodCode(ast)};`)
 	}
 
-	// Iterate over each path and method
-	for (const [_pathKey, pathOperations] of Object.entries(paths)) {
+	// Process paths and operations
+	for (const [pathKey, pathOperations] of Object.entries(paths)) {
 		for (const [method, operation] of Object.entries(pathOperations)) {
-			const _methodName = method.toUpperCase()
-			const requestVariable = `${method.toLowerCase()}RequestSchema`
-			const responseVariable = `${method.toLowerCase()}ResponseSchema`
-
-			// Generate request schema
-			const requestCode = generateRequestSchema(
-				method,
+			// Generate path and query parameter schemas
+			const pathSchemaAst = generatePathParamsAst(
 				operation,
 				openapi,
 				getSchemaVariable
 			)
-			requestDefs.push(`export const ${requestVariable} = ${requestCode};`)
+			const querySchemaAst = generateQueryParamsAst(
+				operation,
+				openapi,
+				getSchemaVariable
+			)
 
-			// Generate response schemas
-			const responses = operation.responses || {}
-			const branches: string[] = []
-			for (const [status, response] of Object.entries(responses)) {
-				const resolvedResponse = response.$ref
-					? resolveRef(openapi, response.$ref)
-					: response
-				const bodySchemaAst = getResponseSchema(
-					resolvedResponse,
-					openapi,
-					getSchemaVariable
-				)
-				const headersSchemaAst = getHeadersSchemaAst(
-					resolvedResponse,
-					openapi,
-					getSchemaVariable
-				)
-				const bodySchemaCode = generateZodCode(bodySchemaAst)
-				const headersSchemaCode = generateZodCode(headersSchemaAst)
-				if (status === "default") {
-					branches.push(
-						`z.object({ status: z.number(), headers: ${headersSchemaCode}, body: ${bodySchemaCode} })`
-					)
-				} else if (/^\d+$/.test(status)) {
-					const statusNumber = Number.parseInt(status, 10)
-					branches.push(
-						`z.object({ status: z.literal(${statusNumber}), headers: ${headersSchemaCode}, body: ${bodySchemaCode} })`
-					)
+			// Handle request schemas for operations with multiple content types
+			const requestSchemaAsts: ZodAST[] = []
+			const requestContentTypes: (string | null)[] = []
+			const requestBody = operation.requestBody
+
+			if (requestBody) {
+				const resolvedRequestBody = requestBody.$ref
+					? resolveRef(openapi, requestBody.$ref)
+					: requestBody
+				if (resolvedRequestBody.content) {
+					for (const [contentType, mediaType] of Object.entries(
+						resolvedRequestBody.content
+					)) {
+						const bodySchema = mediaType.schema
+						if (bodySchema) {
+							const headersAst: ZodAST = {
+								type: "object",
+								properties: {
+									"Content-Type": { type: "literal", value: contentType }
+								},
+								required: ["Content-Type"]
+							}
+							const bodyAst = openApiSchemaToZodAst(
+								bodySchema,
+								getSchemaVariable,
+								openapi
+							)
+							const requestSchemaAst: ZodAST = {
+								type: "object",
+								properties: {
+									method: { type: "literal", value: method },
+									path: pathSchemaAst,
+									query: querySchemaAst,
+									headers: headersAst,
+									body: bodyAst
+								},
+								required: ["method", "path", "query", "headers"],
+								description: `${method.toUpperCase()} request for ${pathKey} with ${contentType}`
+							}
+							if (resolvedRequestBody.required) {
+								requestSchemaAst.required.push("body")
+							}
+							requestSchemaAsts.push(requestSchemaAst)
+							requestContentTypes.push(contentType)
+						}
+					}
 				}
 			}
 
-			// Determine how to construct the response schema based on the number of branches
-			let responseSchemaCode: string
-			if (branches.length === 0) {
-				throw new Error("No responses defined for operation")
+			if (requestSchemaAsts.length === 0) {
+				// No request body or no content types
+				const headersAst: ZodAST = {
+					type: "object",
+					properties: {},
+					required: []
+				}
+				const requestSchemaAst: ZodAST = {
+					type: "object",
+					properties: {
+						method: { type: "literal", value: method },
+						path: pathSchemaAst,
+						query: querySchemaAst,
+						headers: headersAst,
+						body: { type: "undefined" }
+					},
+					required: ["method", "path", "query", "headers", "body"],
+					description: `${method.toUpperCase()} request for ${pathKey}`
+				}
+				requestSchemaAsts.push(requestSchemaAst)
+				requestContentTypes.push(null)
 			}
-			if (branches.length === 1) {
-				responseSchemaCode = `export const ${responseVariable} = ${branches[0]};`
-			} else {
-				responseSchemaCode = `export const ${responseVariable} = z.union([${branches.join(", ")}]);`
+
+			// Generate response schemas corresponding to each request schema
+			const responses = operation.responses || {}
+			for (let i = 0; i < requestSchemaAsts.length; i++) {
+				const requestContentType = requestContentTypes[i]
+				const branches: ZodAST[] = []
+
+				for (const [status, response] of Object.entries(responses)) {
+					const resolvedResponse = response.$ref
+						? resolveRef(openapi, response.$ref)
+						: response
+					let statusAst: ZodAST
+					if (/^\d+$/.test(status)) {
+						statusAst = { type: "literal", value: Number.parseInt(status, 10) }
+					} else {
+						statusAst = { type: "number" }
+					}
+
+					if (resolvedResponse.content) {
+						// For status 200, prioritize the matching content type if available
+						if (
+							status === "200" &&
+							requestContentType &&
+							resolvedResponse.content[requestContentType]
+						) {
+							const mediaType = resolvedResponse.content[requestContentType]
+							const headersAst = getHeadersSchemaAst(
+								resolvedResponse,
+								requestContentType,
+								openapi,
+								getSchemaVariable
+							)
+							const bodyAst = mediaType.schema
+								? openApiSchemaToZodAst(
+										mediaType.schema,
+										getSchemaVariable,
+										openapi
+									)
+								: { type: "undefined" as const }
+							branches.push({
+								type: "object",
+								properties: {
+									status: statusAst,
+									headers: headersAst,
+									body: bodyAst
+								},
+								required: ["status", "headers", "body"]
+							})
+						} else {
+							// For other statuses or if no matching content type, include all content types
+							for (const [respContentType, mediaType] of Object.entries(
+								resolvedResponse.content
+							)) {
+								const headersAst = getHeadersSchemaAst(
+									resolvedResponse,
+									respContentType,
+									openapi,
+									getSchemaVariable
+								)
+								const bodyAst = mediaType.schema
+									? openApiSchemaToZodAst(
+											mediaType.schema,
+											getSchemaVariable,
+											openapi
+										)
+									: { type: "undefined" as const }
+								branches.push({
+									type: "object",
+									properties: {
+										status: statusAst,
+										headers: headersAst,
+										body: bodyAst
+									},
+									required: ["status", "headers", "body"]
+								})
+							}
+						}
+					} else {
+						const headersAst = getHeadersSchemaAst(
+							resolvedResponse,
+							null,
+							openapi,
+							getSchemaVariable
+						)
+						branches.push({
+							type: "object",
+							properties: {
+								status: statusAst,
+								headers: headersAst,
+								body: { type: "undefined" as const }
+							},
+							required: ["status", "headers", "body"]
+						})
+					}
+				}
+
+				if (branches.length > 1) {
+					const unionAst: ZodAST = {
+						type: "union",
+						options: branches,
+						description: `Responses for ${method.toUpperCase()} ${pathKey} with request content type ${requestContentType || "no body"}`
+					}
+					responseSchemaCodes.push(generateZodCode(unionAst))
+				} else if (branches.length === 1) {
+					responseSchemaCodes.push(generateZodCode(branches[0]))
+				} else {
+					throw new Error(`No responses defined for ${method} ${pathKey}`)
+				}
+
+				// Generate Zod code for the request schema
+				requestSchemaCodes.push(generateZodCode(requestSchemaAsts[i]))
 			}
-			responseDefs.push(responseSchemaCode)
 		}
 	}
 
@@ -837,21 +850,24 @@ import { z } from "zod";
 
 ${schemaDefs.join("\n\n")}
 
-${requestDefs.join("\n\n")}
+export const requestSchemas = [
+${requestSchemaCodes.map((code) => `  ${code}`).join(",\n")}
+];
 
-${responseDefs.join("\n\n")}
-    `.trim()
+export const responseSchemas = [
+${responseSchemaCodes.map((code) => `  ${code}`).join(",\n")}
+];
+`.trim()
 }
 
 // ### Exports and CLI
-
 export { transformOpenApiToZod }
 
 if (require.main === module) {
 	const args = process.argv.slice(2)
 	if (args.length !== 2) {
 		console.error(
-			"Usage: ts-nodescript.ts <input-openapi.json> <output-zod.ts>"
+			"Usage: ts-node script.ts <input-openapi.json> <output-zod.ts>"
 		)
 		process.exit(1)
 	}
@@ -860,12 +876,8 @@ if (require.main === module) {
 		const openapiJson = fs.readFileSync(path.resolve(inputFile), "utf-8")
 		const openapi = JSON.parse(openapiJson) as OpenAPISchema
 		const zodCode = transformOpenApiToZod(openapi)
-		// Remove unused variables before writing to file
-		const cleanedZodCode = removeUnusedVariablesFromCode(zodCode)
-		fs.writeFileSync(path.resolve(outputFile), cleanedZodCode)
-		console.log(
-			`Zod schemas with unused variables removed written to ${outputFile}`
-		)
+		fs.writeFileSync(path.resolve(outputFile), zodCode)
+		console.log(`Zod schemas written to ${outputFile}`)
 	} catch (error) {
 		console.error("Error:", (error as Error).message)
 		process.exit(1)
